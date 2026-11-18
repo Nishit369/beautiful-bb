@@ -77,7 +77,7 @@ function HarnessRow({ h, now }: { h: HarnessUsage; now: number }) {
         <ProviderIcon providerKind="agent" provider={provider} />
       </span>
       <span className="bbb-bar" aria-hidden="true">
-        <span style={{ width: `${used}%` }} />
+        <span style={{ width: `${used}%`, backgroundSize: `${used > 0 ? 10000 / used : 100}% 100%` }} />
       </span>
       {h.daily.length > 0 ? <TokenBars daily={h.daily} now={now} /> : <span className="bbb-bars" aria-hidden="true" />}
       <span className="bbb-pct">{h.usedPercent}%</span>
