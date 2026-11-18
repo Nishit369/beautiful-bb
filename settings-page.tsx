@@ -366,6 +366,11 @@ export function SettingsPage() {
 
       <Group id="bbs-sidebar" title="Sidebar and threads">
         <Row
+          title="PRs card"
+          detail="Your open pull requests with CI, review and merge state, above the system card. Reads GitHub through the gh CLI."
+          control={<Switch label="PRs card" checked={prefs.prsCard} onChange={(v) => update({ prsCard: v })} />}
+        />
+        <Row
           title="System card"
           detail="Live CPU and memory use for this Mac, above the usage card. Hover a row for details."
           control={<Switch label="System card" checked={prefs.systemCard} onChange={(v) => update({ systemCard: v })} />}

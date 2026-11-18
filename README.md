@@ -11,6 +11,7 @@ rail. Changes apply right away. The same settings are also available with
 | Appearance | System, Light, or Dark for every theme. Switches bb's own Settings → Appearance mode, so the two always agree. Not part of `bb plugin config` | System |
 | Font | Theme default, bb's bundled Inter, or any Google Fonts family, from a searchable dropdown that previews each font | Theme default |
 | Text size | Slider from 85% to 140% that scales the active theme's own text sizes; 100% leaves them as the theme sets them | 100% |
+| PRs card | Your open pull requests with CI, review and merge state, above the system card | On |
 | System card | This Mac's live CPU and memory use above the usage card | On |
 | Usage card | Weekly limit and 7-day token bars above the sidebar footer | On |
 | Agent activity | A wave on working threads in the sidebar, sparkles when one finishes | On |
@@ -57,6 +58,28 @@ The look of [T3 Code](https://github.com/pingdotgg/t3code) in bb:
 - System UI font and SF Mono, matching T3 Code
 - Text one step larger across the app
 - Indigo text selection and cursor, slim scrollbars
+
+## PRs card
+
+A one-row card above the system card counts your open pull requests across
+every repo, with a warning count when any have failing CI, conflicts or
+requested changes. Click it to slide a panel up over the thread list; the
+cards below never move. The panel has filter chips (All, needs attention,
+ready to merge, and one per repo; one repo and one state at a time,
+remembered across reloads) over a list that keeps the same height for every
+filter. Each row has a state icon pinned at the left, the title over a quiet
+line of number and age, and lines added and removed pinned at the right. The
+list scrolls both ways, so long titles can be read in full. Hover a row for
+the repo, size label, CI and review; click it to open the PR in your default
+browser. Close the panel from the header, with Escape, or by clicking
+outside it.
+
+The card reads GitHub through your `gh` CLI and its existing sign-in, with one
+read-only GraphQL search (`is:pr is:open author:@me archived:false`). It
+refreshes every five minutes and when you hover the card or focus the window;
+the server reuses a result for a minute and waits ten minutes after a GitHub
+rate limit. The last list stays on screen through errors and restarts.
+Without `gh`, or signed out, the card shows one line saying so.
 
 ## Weekly usage card
 
@@ -137,6 +160,8 @@ Edit `themes/*.src.css`, then:
 node scripts/build-themes.mjs   # writes themes/*.css
 bb plugin reload beautiful-bb
 ```
+
+Run the tests with `node --test`.
 
 ## Credits
 

@@ -10,9 +10,19 @@ li[data-footer-item="plugin:beautiful-bb/weekly-usage"] {
   display: none;
 }
 
+/* One motion language for every card: things that open or change ease out,
+   things that close ease in. */
+:root {
+  --bbb-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --bbb-ease-in: cubic-bezier(0.32, 0, 0.67, 0);
+  --bbb-dur: 200ms;
+  --bbb-dur-close: 160ms;
+  --bbb-dur-hover: 150ms;
+}
+
 /* bb draws one frame around a footer disclosure, and only one disclosure is
-   open at a time, so the system and usage cards share this one. Its frame is
-   cleared and each card draws its own copy of it, so they stack as two cards. */
+   open at a time, so the footer cards share this one. Its frame is cleared
+   and each card draws its own copy of it, so they stack as separate cards. */
 section:has(> div > div > .bbb-card) {
   border: 0;
   border-radius: 0;
@@ -41,7 +51,7 @@ section:has(> div > div > .bbb-card) {
 /* Only the contents dim, so the frame stays crisp. */
 .bbb-card > * {
   opacity: 0.4;
-  transition: opacity 200ms ease;
+  transition: opacity var(--bbb-dur) var(--bbb-ease-out);
 }
 
 .bbb-card:hover > *,

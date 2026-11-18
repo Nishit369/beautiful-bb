@@ -1,8 +1,8 @@
-// Beautiful bb frontend entry. Registers every piece of the plugin: the system
-// card (live CPU and memory) and the usage card above the sidebar footer (one
-// line per harness: logo, weekly limit bar, 7-day token bars, percent used,
-// time to reset), the home wallpaper and
-// greeting, the settings page, the effects overlay, and command-menu actions.
+// Beautiful bb frontend entry. Registers every piece of the plugin: the PRs
+// card (prs-card.tsx), the system card (live CPU and memory) and the usage card
+// above the sidebar footer (one line per harness: logo, weekly limit bar, 7-day
+// token bars, percent used, time to reset), the home wallpaper and greeting,
+// the settings page, the effects overlay, and command-menu actions.
 import { useCallback, useEffect, useState } from "react";
 import {
   definePluginApp,
@@ -14,7 +14,7 @@ import type { HarnessUsage, rpcContract } from "./server";
 import "./usage-card.css";
 import "./working-spinner.css";
 import { HomeWallpaper } from "./wallpaper";
-import { setRowStatusSetter, setUsageCardController, toggleFocusMode } from "./features";
+import { footerCardsClosed, setRowStatusSetter, setUsageCardController, toggleFocusMode } from "./features";
 import { mountTypography } from "./typography";
 import { SettingsPage } from "./settings-page";
 import { EffectsOverlay } from "./overlay";
@@ -22,6 +22,7 @@ import { HomeGreeting } from "./greeting";
 import { WaveIcon } from "./wave-icon";
 import { nextTheme } from "./actions";
 import { toggleColorMode } from "./color-mode";
+import { PrsCard } from "./prs-card";
 import { SystemCard } from "./system-card";
 import { usePreferences } from "./use-preferences";
 
@@ -91,15 +92,29 @@ function HarnessRow({ h, now }: { h: HarnessUsage; now: number }) {
   );
 }
 
+const USAGE_KEY = "beautiful-bb:weekly-usage";
+
+/** The last reading, so a restarted plugin server (cold caches, a slow first call) still shows rows. */
+function readCachedUsage(): { harnesses: HarnessUsage[]; observedAt: number } | null {
+  try {
+    const cached = JSON.parse(localStorage.getItem(USAGE_KEY) ?? "null");
+    return Array.isArray(cached?.harnesses) && typeof cached.observedAt === "number" ? cached : null;
+  } catch {
+    return null;
+  }
+}
+
 function useWeeklyUsage() {
   const rpc = useRpc<typeof rpcContract>();
-  const [harnesses, setHarnesses] = useState<HarnessUsage[] | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const [cached] = useState(readCachedUsage);
+  const [harnesses, setHarnesses] = useState<HarnessUsage[] | null>(cached?.harnesses ?? null);
+  const [now, setNow] = useState(() => cached?.observedAt ?? Date.now());
   const refetch = useCallback(() => {
     rpc.call("weekly_usage", null).then(
       (result) => {
         setHarnesses(result.harnesses);
         setNow(result.observedAt);
+        localStorage.setItem(USAGE_KEY, JSON.stringify(result));
       },
       () => setHarnesses((current) => current ?? []),
     );
@@ -138,9 +153,11 @@ function WeeklyUsageCard() {
 /** The footer shows one disclosure at a time, so both cards share this one. */
 function FooterCards() {
   const prefs = usePreferences();
+  useEffect(() => footerCardsClosed, []);
   if (!prefs) return null;
   return (
     <>
+      {prefs.prsCard && <PrsCard />}
       {prefs.systemCard && <SystemCard />}
       {prefs.usageCard && <WeeklyUsageCard />}
     </>
@@ -160,12 +177,12 @@ export default definePluginApp((app) => {
     component: SettingsPage,
   });
   // Its footer toggle is hidden by usage-card.css; EffectsOverlay opens it
-  // while the System card or Usage card setting is on.
+  // while the PRs, System or Usage card setting is on.
   setUsageCardController(
     app.experimental_sidebarFooter.register({
       kind: "disclosure",
       id: "weekly-usage",
-      label: "System and weekly usage",
+      label: "PRs, system and weekly usage",
       icon: "ChartColumn",
       component: FooterCards,
     }),

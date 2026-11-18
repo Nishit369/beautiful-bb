@@ -1,6 +1,6 @@
-// Applies the plugin's switches in this window. The system and usage cards
-// share one footer disclosure, opened or closed through its controller; CSS-only features match
-// while their attribute is set on <html>.
+// Applies the plugin's switches in this window. The PRs, system and usage
+// cards share one footer disclosure, opened or closed through its controller;
+// CSS-only features match while their attribute is set on <html>.
 import type {
   ExperimentalSidebarFooterDisclosureController,
   PluginComposerThreadRowStatus,
@@ -10,7 +10,7 @@ import { applyTypography } from "./typography";
 
 export type FeatureSwitches = Pick<
   Preferences,
-  "usageCard" | "systemCard" | "waveSpinner" | "composerGlow" | "agentActivity" | "font" | "fontScale"
+  "usageCard" | "systemCard" | "prsCard" | "waveSpinner" | "composerGlow" | "agentActivity" | "font" | "fontScale"
 >;
 
 let usageCard: ExperimentalSidebarFooterDisclosureController | null = null;
@@ -30,6 +30,16 @@ function reopenUsageCardWhenFooterIdle() {
   if (!document.querySelector('[data-footer-item] [aria-expanded="true"]')) usageCard?.open();
 }
 
+/**
+ * bb also closes the disclosure on Escape, which changes no footer item's
+ * aria-expanded, so the watcher never sees it. The cards report their own
+ * unmount; reopen then, unless the cards were switched off or another
+ * disclosure took the footer.
+ */
+export function footerCardsClosed() {
+  if (reopenWatcher) requestAnimationFrame(reopenUsageCardWhenFooterIdle);
+}
+
 function watchUsageCard(on: boolean) {
   if (!on) {
     reopenWatcher?.disconnect();
@@ -42,7 +52,7 @@ function watchUsageCard(on: boolean) {
 }
 
 export function applyFeatures(features: FeatureSwitches) {
-  const footerCards = features.usageCard || features.systemCard;
+  const footerCards = features.usageCard || features.systemCard || features.prsCard;
   if (footerCards) usageCard?.open();
   else usageCard?.close();
   watchUsageCard(footerCards);

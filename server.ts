@@ -1,6 +1,6 @@
 // Beautiful bb backend. Themes load from `bb.themes` in package.json. This
 // entry owns the feature settings (each feature can be switched off) and serves
-// the sidebar usage card's and home greeting's data.
+// the sidebar cards' and home greeting's data.
 import { execFile } from "node:child_process";
 import { userInfo } from "node:os";
 import { promisify } from "node:util";
@@ -18,6 +18,8 @@ import {
 import { dailyTokens, type DailyTokens } from "./tokens";
 import { pooledWeeklyUsage, PROVIDER_NAMES, uniqueWeeklyAccounts, weeklyAccountSchema } from "./usage";
 import { createSystemSampler, systemStatsSchema, topProcess } from "./system";
+import { prsResultSchema } from "./prs";
+import { myPullRequests, openInBrowser } from "./prs-source";
 
 const TOKENS_TTL_MS = 5 * 60 * 1000;
 /** Realtime channel: published whenever a setting changes, so every window re-applies. */
@@ -49,6 +51,14 @@ export const rpcContract = defineRpcContract({
     input: z.null(),
     output: z.object({ usageCard: z.boolean(), waveSpinner: z.boolean() }),
   },
+  my_prs: {
+    input: z.null(),
+    output: prsResultSchema,
+  },
+  open_pr: {
+    input: z.string(),
+    output: z.boolean(),
+  },
   greeting: {
     input: z.null(),
     output: z.object({ name: z.string().nullable(), tokensToday: z.number() }),
@@ -67,6 +77,7 @@ export const rpcContract = defineRpcContract({
 const preferencesSchema = z.object({
   usageCard: z.boolean(),
   systemCard: z.boolean(),
+  prsCard: z.boolean(),
   waveSpinner: z.boolean(),
   agentActivity: z.boolean(),
   composerGlow: z.boolean(),
@@ -119,6 +130,12 @@ export default async function plugin(bb: BbPluginApi) {
       type: "boolean",
       label: "System card",
       description: "Show this Mac's live CPU and memory use above the usage card.",
+      default: true,
+    },
+    prsCard: {
+      type: "boolean",
+      label: "PRs card",
+      description: "Your open pull requests with CI, review and merge state, above the system card. Uses the gh CLI's sign-in.",
       default: true,
     },
     waveSpinner: {
@@ -249,6 +266,8 @@ export default async function plugin(bb: BbPluginApi) {
         observedAt: Date.now(),
       };
     },
+    my_prs: () => myPullRequests((message) => bb.log.warn(message)),
+    open_pr: openInBrowser,
     greeting: async () => {
       const daily = await tokensFor(["claude-code", "codex"]);
       const tokensToday = Object.values(daily).reduce((sum, days) => sum + (days.at(-1) ?? 0), 0);
