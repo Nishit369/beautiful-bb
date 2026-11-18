@@ -94,6 +94,11 @@ button.bbb-prs-head[aria-expanded="true"] {
   gap: 0.1875rem;
 }
 
+.bbb-prs-stale {
+  display: inline-flex;
+  opacity: 0.7;
+}
+
 .bbb-prs-head > .bbb-pr-icon:last-child {
   transition: rotate var(--bbb-dur) var(--bbb-ease-out);
 }
@@ -350,7 +355,12 @@ button.bbb-prs-head[aria-expanded="true"] {
 @media (prefers-reduced-motion: reduce) {
   .bbb-prs-sheet,
   .bbb-prs-panel:not([data-open]) .bbb-prs-sheet,
-  .bbb-prs-head > .bbb-pr-icon:last-child {
+  .bbb-prs-stale {
+  display: inline-flex;
+  opacity: 0.7;
+}
+
+.bbb-prs-head > .bbb-pr-icon:last-child {
     transition: none;
   }
 }

@@ -75,11 +75,16 @@ browser. Close the panel from the header, with Escape, or by clicking
 outside it.
 
 The card reads GitHub through your `gh` CLI and its existing sign-in, with one
-read-only GraphQL search (`is:pr is:open author:@me archived:false`). It
-refreshes every five minutes and when you hover the card or focus the window;
-the server reuses a result for a minute and waits ten minutes after a GitHub
-rate limit. The last list stays on screen through errors and restarts.
-Without `gh`, or signed out, the card shows one line saying so.
+read-only GraphQL search (`is:pr is:open author:@me archived:false`, first 100).
+The result lives in a cache shared with other bb plugins that show your PRs,
+such as bb-armada's Crew tab: `~/.cache/bb-prs/open-prs.json`. Between them
+they call GitHub at most once every five minutes, and only one fetch runs at a
+time. The card refreshes on that timer while the window is visible; hovering,
+opening the panel and focusing the window only re-read the cache. After a
+rate limit or error, nobody calls GitHub again until the time GitHub gives, or
+a doubling backoff. The last list stays on screen, with a small clock in the
+header saying how old it is and when it will retry. Without `gh`, or signed
+out, the card shows one line saying so.
 
 ## Weekly usage card
 

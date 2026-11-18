@@ -28,7 +28,6 @@ import {
   filterChips,
   liveFilter,
   NO_FILTER,
-  prsResultSchema,
   status,
   summarize,
   type PrFilter,
@@ -53,6 +52,7 @@ const ICONS = {
   changes: "M5 19l-2 2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9M9 10h6M12 7v6M9 17h6",
   approved: "M20 6L9 17l-5-5",
   chevron: "M18 15l-6-6-6 6",
+  clock: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20M12 6v6l4 2",
 } as const;
 type IconName = keyof typeof ICONS;
 type Tone = "warn" | "bad";
@@ -155,44 +155,46 @@ function PrRow({ pr, now, onOpen }: RowProps) {
   );
 }
 
-const PRS_KEY = "beautiful-bb:prs";
-
-/** The last good list, shown at once on load and kept through rate limits, errors and server restarts. */
-function readCachedPrs(): PrsResult | null {
-  try {
-    const parsed = prsResultSchema.safeParse(JSON.parse(localStorage.getItem(PRS_KEY) ?? "null"));
-    return parsed.success && parsed.data.status === "ok" ? parsed.data : null;
-  } catch {
-    return null;
-  }
-}
-
-/** A failure that says nothing about the PRs themselves, so the last list stays up. */
-const TRANSIENT = new Set<PrsResult["status"]>(["rate-limited", "error"]);
-
-/** Fetches on mount, every few minutes, and whenever the user looks (window focus, card hover); keeps the last list on failure. */
+/**
+ * Asks the server for the list. Only loading the card and a five-minute timer
+ * while the window is visible may call GitHub, and the shared cache still
+ * skips the call while its data is fresh or a backoff holds. Hover, window
+ * focus and opening the panel only re-read the cache.
+ */
 function usePullRequests() {
   const rpc = useRpc<typeof rpcContract>();
-  const [result, setResult] = useState<PrsResult | null>(readCachedPrs);
-  const refetch = useCallback(() => {
-    rpc.call("my_prs", null).then(
-      (next) => {
-        if (next.status === "ok") localStorage.setItem(PRS_KEY, JSON.stringify(next));
-        setResult((current) => (TRANSIENT.has(next.status) && current?.status === "ok" ? current : next));
-      },
-      () => setResult((current) => current ?? { status: "error" }),
-    );
-  }, [rpc]);
+  const [result, setResult] = useState<PrsResult | null>(null);
+  const load = useCallback(
+    (refresh: boolean) => {
+      rpc.call("my_prs", { refresh }).then(
+        (next) => setResult((current) => (next.status !== "ok" && current?.status === "ok" ? current : next)),
+        () => setResult((current) => current ?? { status: "error" }),
+      );
+    },
+    [rpc],
+  );
+  const reread = useCallback(() => load(false), [load]);
   useEffect(() => {
-    refetch();
-    const timer = window.setInterval(refetch, REFRESH_MS);
-    window.addEventListener("focus", refetch);
+    const refreshIfVisible = () => {
+      if (document.visibilityState === "visible") load(true);
+    };
+    refreshIfVisible();
+    const timer = window.setInterval(refreshIfVisible, REFRESH_MS);
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    window.addEventListener("focus", reread);
     return () => {
       window.clearInterval(timer);
-      window.removeEventListener("focus", refetch);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+      window.removeEventListener("focus", reread);
     };
-  }, [refetch]);
-  return { result, refetch };
+  }, [load, reread]);
+  // Another plugin or window is fetching; pick its result up from the cache shortly.
+  useEffect(() => {
+    if (result?.status !== "pending") return;
+    const timer = window.setTimeout(reread, 3000);
+    return () => window.clearTimeout(timer);
+  }, [result, reread]);
+  return { result, reread };
 }
 
 function readFilter(): PrFilter {
@@ -371,15 +373,36 @@ function useDismiss(open: boolean, close: () => void, inside: RefObject<HTMLElem
   }, [open, close, inside]);
 }
 
+/** Past this, the header shows a muted clock even without a problem: the timer has not run for a while. */
+const STALE_HINT_MS = 15 * 60 * 1000;
+
+const PROBLEM_TEXT: Record<NonNullable<Extract<PrsResult, { status: "ok" }>["problem"]>, string> = {
+  "rate-limited": "GitHub rate limit reached",
+  error: "Couldn't reach GitHub",
+  "no-gh": "The GitHub CLI (gh) isn't installed",
+  "signed-out": "gh is signed out",
+};
+
+const clockTime = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+
+/** "Updated 12m ago. GitHub rate limit reached; retrying at 10:25 PM." */
+function freshness(result: Extract<PrsResult, { status: "ok" }>, now: number): string {
+  const updated = `Updated ${age(new Date(result.observedAt).toISOString(), now)} ago.`;
+  if (!result.problem) return updated;
+  const retry = result.retryAt && result.retryAt > now ? `; retrying at ${clockTime.format(result.retryAt)}` : "";
+  return `${updated} ${PROBLEM_TEXT[result.problem]}${retry}.`;
+}
+
 const QUIET_LINE: Record<Exclude<PrsResult["status"], "ok">, string> = {
   "no-gh": "Install the GitHub CLI (gh) to see your PRs here.",
   "signed-out": "Run gh auth login to see your PRs here.",
   "rate-limited": "GitHub rate limit reached. Retrying in a few minutes.",
+  pending: "",
   error: "Couldn't reach GitHub.",
 };
 
 export function PrsCard() {
-  const { result, refetch } = usePullRequests();
+  const { result, reread } = usePullRequests();
   const [stored, updateFilter] = useStoredFilter();
   const [open, setOpen] = useState(false);
   const onOpen = useOpenUrl();
@@ -407,7 +430,7 @@ export function PrsCard() {
     list.current?.scrollTo(0, 0);
   }, [filterKey]);
 
-  if (result === null) {
+  if (result === null || result.status === "pending") {
     return (
       <section className="bbb-card bbb-prs" aria-busy="true">
         <p className="bbb-prs-head">
@@ -419,21 +442,25 @@ export function PrsCard() {
   }
   if (result.status !== "ok" || prs.length === 0) {
     return (
-      <div className="bbb-card" onPointerEnter={refetch}>
+      <div className="bbb-card" onPointerEnter={reread}>
         <p className="bbb-empty">{result.status === "ok" ? "No open PRs." : QUIET_LINE[result.status]}</p>
       </div>
     );
   }
   const filtered = shown.length !== prs.length;
   return (
-    <section ref={card} className="bbb-card bbb-prs" aria-label="Your open pull requests" onPointerEnter={refetch}>
+    <section ref={card} className="bbb-card bbb-prs" aria-label="Your open pull requests" onPointerEnter={reread}>
       <button
         ref={head}
         type="button"
         className="bbb-prs-head"
         aria-expanded={open}
         aria-controls={panelId}
-        onClick={() => setOpen((was) => !was)}
+        title={freshness(result, Date.now())}
+        onClick={() => {
+          if (!open) reread();
+          setOpen((was) => !was);
+        }}
       >
         <Icon name="pr" />
         <span className="bbb-prs-label">PRs</span>
@@ -442,6 +469,11 @@ export function PrsCard() {
           {filtered && <span> of {prs.length}</span>}
         </span>
         <Summary prs={shown} />
+        {(result.problem || Date.now() - result.observedAt > STALE_HINT_MS) && (
+          <span className="bbb-prs-stale" role="img" aria-label={freshness(result, Date.now())}>
+            <Icon name="clock" />
+          </span>
+        )}
         <Icon name="chevron" />
       </button>
       {createPortal(

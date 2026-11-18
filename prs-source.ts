@@ -1,46 +1,73 @@
-// Fetches the PRs card's data through the user's own `gh` CLI, so its existing
-// sign-in does the auth and no token passes through the plugin. Read-only: one
-// GraphQL search. Results are cached briefly, concurrent callers share one
-// call, and a rate limit backs off for minutes, since GitHub's limits are per
-// user and shared with every other tool. Also opens a PR in the system's
-// default browser, which bb's own URL opener does not: it prefers bb's
-// built-in browser.
+// The PRs card's server side. The list comes from the open-PR cache shared
+// with other bb plugins (pr-cache.ts), filled through the user's own `gh` CLI
+// so its sign-in does the auth and no token passes through the plugin. Also
+// opens a PR in the system's default browser, which bb's own URL opener does
+// not: it prefers bb's built-in browser.
 import { execFile } from "node:child_process";
-import { delimiter } from "node:path";
+import { homedir } from "node:os";
+import { delimiter, join } from "node:path";
 import { promisify } from "node:util";
-import { PRS_QUERY, PRS_SEARCH, parsePullRequests, type PrsResult } from "./prs";
+import { readCache, refreshOpenPrs, type CacheDeps, type CacheFile, type GhResult } from "./pr-cache";
+import { parsePullRequests, type PrsResult } from "./prs";
 
-const TTL_MS = 60 * 1000;
-const RATE_LIMIT_BACKOFF_MS = 10 * 60 * 1000;
 /** bb launched from the Dock gets a bare PATH; look where Homebrew installs gh too. */
 const PATH = [process.env.PATH, "/opt/homebrew/bin", "/usr/local/bin"].filter(Boolean).join(delimiter);
+const CACHE_DIR = join(homedir(), ".cache", "bb-prs");
 
-type Warn = (message: string) => void;
-type Fetched = { result: PrsResult; retryInMs: number };
-
-let cached: { until: number; result: PrsResult } | null = null;
-let lastOk: PrsResult | null = null;
-let inFlight: Promise<PrsResult> | null = null;
-
-async function fetchPullRequests(warn: Warn): Promise<Fetched> {
+async function gh(args: string[]): Promise<GhResult> {
   try {
-    const { stdout } = await promisify(execFile)("gh", ["api", "graphql", "-f", `query=${PRS_QUERY}`, "-f", `q=${PRS_SEARCH}`], {
+    const { stdout, stderr } = await promisify(execFile)("gh", args, {
       timeout: 15_000,
       env: { ...process.env, PATH, GH_PROMPT_DISABLED: "1", NO_COLOR: "1" },
     });
-    lastOk = { status: "ok", prs: parsePullRequests(JSON.parse(stdout)), observedAt: Date.now() };
-    return { result: lastOk, retryInMs: TTL_MS };
+    return { code: 0, stdout, stderr };
   } catch (error) {
-    const e = error as { code?: string | number; stderr?: string; message?: string };
-    if (e.code === "ENOENT") return { result: { status: "no-gh" }, retryInMs: TTL_MS };
-    // gh exits 4 when it needs `gh auth login`.
-    if (e.code === 4 || /gh auth login/.test(e.stderr ?? "")) return { result: { status: "signed-out" }, retryInMs: TTL_MS };
-    // gh's stderr names the failure (network, rate limit, GraphQL error); it never contains the token.
-    const detail = (e.stderr || e.message || "").trim().slice(0, 300);
-    warn(`PR fetch failed (${e.code ?? "no code"}): ${detail}`);
-    if (/rate limit/i.test(detail)) return { result: lastOk ?? { status: "rate-limited" }, retryInMs: RATE_LIMIT_BACKOFF_MS };
-    return { result: lastOk ?? { status: "error" }, retryInMs: TTL_MS };
+    const e = error as { code?: number | string; stdout?: string; stderr?: string };
+    return { code: e.code ?? 1, stdout: e.stdout ?? "", stderr: e.stderr ?? "" };
   }
+}
+
+const deps: CacheDeps = { dir: CACHE_DIR, now: Date.now, gh };
+
+function toResult(cache: CacheFile): PrsResult {
+  const problem = cache.lastError?.kind ?? null;
+  if (cache.fetchedAt === null || cache.data === null) return { status: problem ?? "pending" };
+  let prs;
+  try {
+    prs = parsePullRequests({ data: cache.data });
+  } catch {
+    return { status: "error" };
+  }
+  return {
+    status: "ok",
+    prs,
+    observedAt: cache.fetchedAt,
+    problem,
+    retryAt: problem ? cache.nextAllowedAt : null,
+  };
+}
+
+let refreshing: Promise<CacheFile> | null = null;
+
+/**
+ * The user's open PRs. `refresh` lets this call fetch from GitHub, which the
+ * shared cache allows only when its data is stale, no backoff is pending,
+ * and no other fetch holds the lock. Without it the call only reads the cache.
+ */
+export async function myPullRequests(refresh: boolean, warn: (message: string) => void): Promise<PrsResult> {
+  if (!refresh) return toResult(await readCache(CACHE_DIR));
+  refreshing ??= (async () => {
+    const started = Date.now();
+    try {
+      const cache = await refreshOpenPrs(deps);
+      if (cache.lastError && cache.lastError.at >= started)
+        warn(`PR fetch failed (${cache.lastError.kind}): ${cache.lastError.message}`);
+      return cache;
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return toResult(await refreshing);
 }
 
 const PR_URL = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+$/;
@@ -56,17 +83,4 @@ export async function openInBrowser(url: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-export function myPullRequests(warn: Warn): Promise<PrsResult> {
-  if (cached && Date.now() < cached.until) return Promise.resolve(cached.result);
-  inFlight ??= fetchPullRequests(warn)
-    .then(({ result, retryInMs }) => {
-      cached = { until: Date.now() + retryInMs, result };
-      return result;
-    })
-    .finally(() => {
-      inFlight = null;
-    });
-  return inFlight;
 }

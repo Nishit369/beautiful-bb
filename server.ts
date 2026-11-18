@@ -52,7 +52,8 @@ export const rpcContract = defineRpcContract({
     output: z.object({ usageCard: z.boolean(), waveSpinner: z.boolean() }),
   },
   my_prs: {
-    input: z.null(),
+    /** `refresh` may fetch from GitHub (when the shared cache is stale); otherwise it only reads the cache. */
+    input: z.object({ refresh: z.boolean() }),
     output: prsResultSchema,
   },
   open_pr: {
@@ -266,7 +267,7 @@ export default async function plugin(bb: BbPluginApi) {
         observedAt: Date.now(),
       };
     },
-    my_prs: () => myPullRequests((message) => bb.log.warn(message)),
+    my_prs: ({ refresh }) => myPullRequests(refresh, (message) => bb.log.warn(message)),
     open_pr: openInBrowser,
     greeting: async () => {
       const daily = await tokensFor(["claude-code", "codex"]);

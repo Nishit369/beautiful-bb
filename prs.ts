@@ -1,26 +1,8 @@
-// The PRs card's data: the user's open pull requests as GitHub's GraphQL search
-// returns them, reduced to what one sidebar row shows, and ordered so the ones
-// that need the user come first. Pure, so the server and the card share it.
+// The PRs card's data: the user's open pull requests as the shared cache
+// (pr-cache.ts) holds GitHub's search, reduced to what one sidebar row shows,
+// and ordered so the ones that need the user come first. Pure, so the server
+// and the card share it.
 import { z } from "zod";
-
-/** Read-only: one search, no mutations. `author:@me` is the gh-authenticated user. */
-export const PRS_QUERY = `query($q: String!) {
-  search(query: $q, type: ISSUE, first: 50) {
-    nodes {
-      ... on PullRequest {
-        number title url isDraft createdAt updatedAt additions deletions
-        repository { name nameWithOwner owner { avatarUrl(size: 32) } }
-        labels(first: 20) { nodes { name } }
-        reviewDecision mergeable
-        commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 1) {
-          checkRunCountsByState { state count }
-          statusContextCountsByState { state count }
-        } } } } }
-      }
-    }
-  }
-}`;
-export const PRS_SEARCH = "is:pr is:open author:@me archived:false sort:updated-desc";
 
 const countsSchema = z.array(z.object({ state: z.string(), count: z.number() }));
 const searchNodeSchema = z.object({
@@ -87,10 +69,21 @@ export const pullRequestSchema = z.object({
 export type PullRequest = z.infer<typeof pullRequestSchema>;
 export type Checks = z.infer<typeof checksSchema>;
 
+export const PROBLEMS = ["rate-limited", "no-gh", "signed-out", "error"] as const;
+
 export const prsResultSchema = z.discriminatedUnion("status", [
-  z.object({ status: z.literal("ok"), prs: z.array(pullRequestSchema), observedAt: z.number() }),
-  /** gh is not installed, not signed in, rate-limited, or failed; the card shows one quiet line. */
-  z.object({ status: z.enum(["no-gh", "signed-out", "rate-limited", "error"]) }),
+  z.object({
+    status: z.literal("ok"),
+    prs: z.array(pullRequestSchema),
+    /** When GitHub returned this list. */
+    observedAt: z.number(),
+    /** Why the last refresh failed, if it did; the list is then the last good one. */
+    problem: z.enum(PROBLEMS).nullable(),
+    /** When the next refresh may call GitHub, while a problem holds it back. */
+    retryAt: z.number().nullable(),
+  }),
+  /** No list yet: another refresh is running, or GitHub can't be read (one quiet line). */
+  z.object({ status: z.enum(["pending", ...PROBLEMS]) }),
 ]);
 export type PrsResult = z.infer<typeof prsResultSchema>;
 
