@@ -366,6 +366,11 @@ export function SettingsPage() {
 
       <Group id="bbs-sidebar" title="Sidebar and threads">
         <Row
+          title="System card"
+          detail="Live CPU and memory use for this Mac, above the usage card. Hover a row for details."
+          control={<Switch label="System card" checked={prefs.systemCard} onChange={(v) => update({ systemCard: v })} />}
+        />
+        <Row
           title="Usage card"
           detail="Weekly limit, reset time, and 7-day token use for Claude and Codex, above the sidebar footer."
           control={<Switch label="Usage card" checked={prefs.usageCard} onChange={(v) => update({ usageCard: v })} />}

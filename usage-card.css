@@ -1,13 +1,22 @@
 /* Weekly usage card. One fixed line per account; hover or keyboard focus only
    lifts the opacity, nothing resizes. The active theme's accent (lavender in
-   T3 Night) colors every day bar so the rows read as a set. Limit bars fill
-   from one value scale: neutral gray through normal values, the theme's
-   warning color near 70%, and its destructive color at 100%. */
+   T3 Night) colors every day bar so the rows read as a set. Limit bars share
+   one value scale with the system card: neutral gray through normal values,
+   the theme's warning color near 70%, and its destructive color at 100%. */
 
 /* The card is always shown (opened on load), so its footer toggle button
    would only add clutter. */
 li[data-footer-item="plugin:beautiful-bb/weekly-usage"] {
   display: none;
+}
+
+/* bb draws one frame around a footer disclosure, and only one disclosure is
+   open at a time, so the system and usage cards share this one. Its frame is
+   cleared and each card draws its own copy of it, so they stack as two cards. */
+section:has(> div > div > .bbb-card) {
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
 
 .bbb-card {
@@ -20,13 +29,23 @@ li[data-footer-item="plugin:beautiful-bb/weekly-usage"] {
     var(--destructive)
   );
   padding: 0.375rem 0.625rem;
+  border: 1px solid var(--sidebar-border, var(--border));
+  border-radius: var(--radius-lg, 0.625rem);
+  background: color-mix(in oklch, var(--sidebar-accent, var(--muted)) 50%, transparent);
   color: var(--sidebar-foreground, var(--foreground));
+}
+.bbb-card + .bbb-card {
+  margin-top: 0.375rem;
+}
+
+/* Only the contents dim, so the frame stays crisp. */
+.bbb-card > * {
   opacity: 0.4;
   transition: opacity 200ms ease;
 }
 
-.bbb-card:hover,
-.bbb-card:focus-within {
+.bbb-card:hover > *,
+.bbb-card:focus-within > * {
   opacity: 1;
 }
 
@@ -126,7 +145,7 @@ li[data-footer-item="plugin:beautiful-bb/weekly-usage"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bbb-card {
+  .bbb-card > * {
     transition: none;
   }
 }

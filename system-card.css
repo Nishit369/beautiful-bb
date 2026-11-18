@@ -1,0 +1,63 @@
+/* System card: the usage card's frame, rows and bars (usage-card.css), with
+   the figure spanning the columns after the bar. The icon and figure stay
+   neutral until load is high, then take the theme's warning, then
+   destructive color. */
+
+.bbb-metric .bbb-bar > span {
+  transition:
+    width 800ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-size 800ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.bbb-metric-figure {
+  grid-column: 3 / -1;
+  text-align: right;
+  white-space: nowrap;
+  font-size: var(--text-2xs, 0.6875rem);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.bbb-metric-figure b {
+  font-weight: 600;
+}
+.bbb-metric-figure span {
+  color: var(--muted-foreground);
+}
+
+.bbb-metric .bbb-icon,
+.bbb-metric-figure b {
+  transition: color 400ms ease;
+}
+.bbb-metric[data-tone="warm"] .bbb-icon,
+.bbb-metric[data-tone="warm"] .bbb-metric-figure b {
+  color: var(--warning);
+}
+.bbb-metric[data-tone="hot"] .bbb-icon,
+.bbb-metric[data-tone="hot"] .bbb-metric-figure b {
+  color: var(--destructive);
+}
+
+.bbb-glyph {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bbb-glyph-solid {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* Two rows' height while the first reading loads, so nothing shifts. */
+.bbb-sys[aria-busy="true"] > ul {
+  height: 2.0625rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bbb-metric .bbb-bar > span,
+  .bbb-metric .bbb-icon,
+  .bbb-metric-figure b {
+    transition: none;
+  }
+}

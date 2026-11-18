@@ -17,6 +17,7 @@ import {
 } from "./wallpapers";
 import { dailyTokens, type DailyTokens } from "./tokens";
 import { pooledWeeklyUsage, PROVIDER_NAMES, uniqueWeeklyAccounts, weeklyAccountSchema } from "./usage";
+import { createSystemSampler, systemStatsSchema, topProcess } from "./system";
 
 const TOKENS_TTL_MS = 5 * 60 * 1000;
 /** Realtime channel: published whenever a setting changes, so every window re-applies. */
@@ -35,6 +36,14 @@ export const rpcContract = defineRpcContract({
   weekly_usage: {
     input: z.null(),
     output: z.object({ harnesses: z.array(harnessSchema), observedAt: z.number() }),
+  },
+  system_stats: {
+    input: z.null(),
+    output: systemStatsSchema,
+  },
+  top_process: {
+    input: z.null(),
+    output: z.object({ name: z.string(), cpu: z.number() }).nullable(),
   },
   features: {
     input: z.null(),
@@ -57,6 +66,7 @@ export const rpcContract = defineRpcContract({
 /** Everything the plugin's settings page reads and writes. */
 const preferencesSchema = z.object({
   usageCard: z.boolean(),
+  systemCard: z.boolean(),
   waveSpinner: z.boolean(),
   agentActivity: z.boolean(),
   composerGlow: z.boolean(),
@@ -103,6 +113,12 @@ export default async function plugin(bb: BbPluginApi) {
       type: "boolean",
       label: "Usage card",
       description: "Show each agent's weekly limit and 7-day token use above the sidebar footer.",
+      default: true,
+    },
+    systemCard: {
+      type: "boolean",
+      label: "System card",
+      description: "Show this Mac's live CPU and memory use above the usage card.",
       default: true,
     },
     waveSpinner: {
@@ -197,7 +213,11 @@ export default async function plugin(bb: BbPluginApi) {
     return tokensCache.byProvider;
   }
 
+  const system = createSystemSampler();
+
   bb.rpc.register(rpcContract, {
+    system_stats: () => system.snapshot(),
+    top_process: topProcess,
     weekly_usage: async () => {
       const [usage, pooled] = await Promise.all([
         bb.sdk.system.usageLimits(),

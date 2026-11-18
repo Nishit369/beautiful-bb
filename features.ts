@@ -1,5 +1,5 @@
-// Applies the plugin's switches in this window. The usage card is a footer
-// disclosure opened or closed through its controller; CSS-only features match
+// Applies the plugin's switches in this window. The system and usage cards
+// share one footer disclosure, opened or closed through its controller; CSS-only features match
 // while their attribute is set on <html>.
 import type {
   ExperimentalSidebarFooterDisclosureController,
@@ -10,7 +10,7 @@ import { applyTypography } from "./typography";
 
 export type FeatureSwitches = Pick<
   Preferences,
-  "usageCard" | "waveSpinner" | "composerGlow" | "agentActivity" | "font" | "fontScale"
+  "usageCard" | "systemCard" | "waveSpinner" | "composerGlow" | "agentActivity" | "font" | "fontScale"
 >;
 
 let usageCard: ExperimentalSidebarFooterDisclosureController | null = null;
@@ -42,9 +42,10 @@ function watchUsageCard(on: boolean) {
 }
 
 export function applyFeatures(features: FeatureSwitches) {
-  if (features.usageCard) usageCard?.open();
+  const footerCards = features.usageCard || features.systemCard;
+  if (footerCards) usageCard?.open();
   else usageCard?.close();
-  watchUsageCard(features.usageCard);
+  watchUsageCard(footerCards);
   const root = document.documentElement;
   root.toggleAttribute("data-bbb-wave", features.waveSpinner);
   root.toggleAttribute("data-bbb-glow", features.composerGlow);

@@ -1,6 +1,7 @@
-// Beautiful bb frontend entry. Registers every piece of the plugin: the usage
-// card above the sidebar footer (one line per harness: logo, weekly limit bar,
-// 7-day token bars, percent used, time to reset), the home wallpaper and
+// Beautiful bb frontend entry. Registers every piece of the plugin: the system
+// card (live CPU and memory) and the usage card above the sidebar footer (one
+// line per harness: logo, weekly limit bar, 7-day token bars, percent used,
+// time to reset), the home wallpaper and
 // greeting, the settings page, the effects overlay, and command-menu actions.
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -21,6 +22,8 @@ import { HomeGreeting } from "./greeting";
 import { WaveIcon } from "./wave-icon";
 import { nextTheme } from "./actions";
 import { toggleColorMode } from "./color-mode";
+import { SystemCard } from "./system-card";
+import { usePreferences } from "./use-preferences";
 
 const REFRESH_MS = 2 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
@@ -132,6 +135,18 @@ function WeeklyUsageCard() {
   );
 }
 
+/** The footer shows one disclosure at a time, so both cards share this one. */
+function FooterCards() {
+  const prefs = usePreferences();
+  if (!prefs) return null;
+  return (
+    <>
+      {prefs.systemCard && <SystemCard />}
+      {prefs.usageCard && <WeeklyUsageCard />}
+    </>
+  );
+}
+
 export default definePluginApp((app) => {
   app.experimental_icons.register({ name: "bbb-wave", component: WaveIcon });
   app.slots.experimental_appOverlay({ id: "effects", component: EffectsOverlay });
@@ -144,15 +159,15 @@ export default definePluginApp((app) => {
     path: "settings",
     component: SettingsPage,
   });
-  // Its footer toggle is hidden by usage-card.css; EffectsOverlay opens or
-  // closes it from the Usage card setting.
+  // Its footer toggle is hidden by usage-card.css; EffectsOverlay opens it
+  // while the System card or Usage card setting is on.
   setUsageCardController(
     app.experimental_sidebarFooter.register({
       kind: "disclosure",
       id: "weekly-usage",
-      label: "Weekly usage",
+      label: "System and weekly usage",
       icon: "ChartColumn",
-      component: WeeklyUsageCard,
+      component: FooterCards,
     }),
   );
   // Only a content script may decorate thread rows; hand its setter to the

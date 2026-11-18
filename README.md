@@ -11,6 +11,7 @@ rail. Changes apply right away. The same settings are also available with
 | Appearance | System, Light, or Dark for every theme. Switches bb's own Settings → Appearance mode, so the two always agree. Not part of `bb plugin config` | System |
 | Font | Theme default, bb's bundled Inter, or any Google Fonts family, from a searchable dropdown that previews each font | Theme default |
 | Text size | Slider from 85% to 140% that scales the active theme's own text sizes; 100% leaves them as the theme sets them | 100% |
+| System card | This Mac's live CPU and memory use above the usage card | On |
 | Usage card | Weekly limit and 7-day token bars above the sidebar footer | On |
 | Agent activity | A wave on working threads in the sidebar, sparkles when one finishes | On |
 | Wave spinner | 4x4 shade grid instead of the "Working..." shimmer | On |
@@ -75,6 +76,23 @@ hides the card; it comes back as soon as you close that panel.
 Token counts come from the harnesses' local session logs (`~/.claude/projects`
 and `~/.codex/sessions`), so work outside bb counts too. They include input,
 output, and cache writes, not cache reads.
+
+## System card
+
+A second card, directly above the usage card, shows this Mac's CPU and memory
+use, refreshed every two seconds. Each row has a bar and a figure: CPU as a
+percent of all cores, memory as gigabytes used of the total. Hover a row for
+the load average and the busiest process, or for the memory breakdown, file
+cache, swap, and memory pressure.
+
+Memory used is Activity Monitor's "Memory Used": app memory, wired memory, and
+compressed memory, read from `vm_stat`. The file cache is not counted, because
+macOS frees it on demand. CPU is the busy share of all cores between two
+samples.
+
+Both cards' bars share one scale: neutral gray through normal values, the
+theme's warning color near 70%, and its destructive color at 100%. Sampling
+stops when the card is off screen or the window is hidden.
 
 ## Wave spinner
 
