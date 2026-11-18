@@ -1,4 +1,4 @@
-/* Weekly usage card. One fixed line per harness; hover or keyboard focus only
+/* Weekly usage card. One fixed line per account; hover or keyboard focus only
    lifts the opacity, nothing resizes. The active theme's accent (lavender in
    T3 Night) colors every bar so the rows read as a set. */
 
@@ -37,7 +37,8 @@ li[data-footer-item="plugin:beautiful-bb/weekly-usage"] {
 }
 
 .bbb-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 0.75rem minmax(0, 1fr) 2.0625rem 2.25rem 3.125rem;
   align-items: center;
   gap: 0.5rem;
   height: 0.875rem;
@@ -89,7 +90,6 @@ li[data-footer-item="plugin:beautiful-bb/weekly-usage"] {
 .bbb-bar > span {
   display: block;
   height: 100%;
-  min-width: 3px;
   border-radius: inherit;
   background: color-mix(in oklch, var(--ink, currentColor) 65%, transparent);
 }

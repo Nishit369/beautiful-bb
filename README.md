@@ -64,6 +64,11 @@ A compact card above the sidebar footer shows each signed-in agent harness
 and a 7-day bar graph of tokens used per day. It stays dim until you hover or
 focus it.
 
+Accounts signed in through BB's Account Pooler also appear, one compact row per
+account, with account details on hover. The same account signed in locally and
+in the pool appears once. Token graphs stay with local harnesses; local logs
+cannot attribute pooled requests to individual accounts.
+
 The sidebar footer shows one panel at a time, so opening bb's own Usage panel
 hides the card; it comes back as soon as you close that panel.
 

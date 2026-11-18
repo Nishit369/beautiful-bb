@@ -63,21 +63,23 @@ function TokenBars({ daily, now }: { daily: number[]; now: number }) {
 
 function HarnessRow({ h, now }: { h: HarnessUsage; now: number }) {
   const { providers } = useProviders();
-  const provider = providers.find((p) => p.id === h.id) ?? { id: h.id };
+  const provider = providers.find((provider) => provider.id === h.providerId) ?? { id: h.providerId };
+  const name = h.accountLabel ? `${h.name} — ${h.accountLabel}` : h.name;
   const resetsAt = Date.parse(h.resetsAt);
   const used = Math.min(Math.max(h.usedPercent, 0), 100);
   return (
     <li
       className="bbb-row"
-      aria-label={`${h.name}: ${h.usedPercent}% of weekly limit used, resets ${dayTime.format(resetsAt)}.`}
+      title={name}
+      aria-label={`${name}: ${h.usedPercent}% of weekly limit used, resets ${dayTime.format(resetsAt)}.`}
     >
-      <span className="bbb-icon" title={h.name} aria-hidden="true">
+      <span className="bbb-icon" aria-hidden="true">
         <ProviderIcon providerKind="agent" provider={provider} />
       </span>
       <span className="bbb-bar" aria-hidden="true">
         <span style={{ width: `${used}%` }} />
       </span>
-      {h.daily.length > 0 && <TokenBars daily={h.daily} now={now} />}
+      {h.daily.length > 0 ? <TokenBars daily={h.daily} now={now} /> : <span className="bbb-bars" aria-hidden="true" />}
       <span className="bbb-pct">{h.usedPercent}%</span>
       <span className="bbb-in" title={`Resets ${dayTime.format(resetsAt)}`}>
         {until(resetsAt - now)}
@@ -124,9 +126,7 @@ function WeeklyUsageCard() {
   return (
     <section className="bbb-card" aria-label="Weekly usage limits" tabIndex={0}>
       <ul>
-        {harnesses.map((h) => (
-          <HarnessRow key={h.id} h={h} now={now} />
-        ))}
+        {harnesses.map((harness) => <HarnessRow key={harness.id} h={harness} now={now} />)}
       </ul>
     </section>
   );

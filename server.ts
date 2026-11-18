@@ -16,19 +16,13 @@ import {
   WALLPAPER_IDS,
 } from "./wallpapers";
 import { dailyTokens, type DailyTokens } from "./tokens";
+import { pooledWeeklyUsage, PROVIDER_NAMES, uniqueWeeklyAccounts, weeklyAccountSchema } from "./usage";
 
 const TOKENS_TTL_MS = 5 * 60 * 1000;
 /** Realtime channel: published whenever a setting changes, so every window re-applies. */
 export const SETTINGS_CHANGED = "settings-changed";
 
-const harnessSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  usedPercent: z.number(),
-  resetsAt: z.string(),
-  /** Tokens per local day (see tokens.ts), oldest first, ending today; empty if unknown. */
-  daily: z.array(z.number()),
-});
+const harnessSchema = weeklyAccountSchema.omit({ accountKey: true });
 export type HarnessUsage = z.infer<typeof harnessSchema>;
 
 const catalogFontSchema = z.object({ family: z.string(), category: z.string() });
@@ -59,8 +53,6 @@ export const rpcContract = defineRpcContract({
     output: z.lazy(() => preferencesSchema),
   },
 });
-
-const NAMES: Record<string, string> = { "claude-code": "Claude", codex: "Codex" };
 
 /** Everything the plugin's settings page reads and writes. */
 const preferencesSchema = z.object({
@@ -207,16 +199,33 @@ export default async function plugin(bb: BbPluginApi) {
 
   bb.rpc.register(rpcContract, {
     weekly_usage: async () => {
-      const usage = await bb.sdk.system.usageLimits();
+      const [usage, pooled] = await Promise.all([
+        bb.sdk.system.usageLimits(),
+        pooledWeeklyUsage(bb).catch(() => {
+          bb.log.warn("Pooled usage is unavailable; showing local accounts.");
+          return [];
+        }),
+      ]);
       const weekly = Object.entries(usage).flatMap(([id, entry]) => {
         if (entry.status !== "ok") return [];
         // The account-wide weekly window; per-model weekly windows carry `model`.
         const w = entry.windows.find((w) => w.kind === "weekly" && !("model" in w && w.model));
-        return w?.resetsAt ? [{ id, usedPercent: w.usedPercent, resetsAt: w.resetsAt }] : [];
+        return w?.resetsAt ? [{
+          id,
+          providerId: id,
+          name: PROVIDER_NAMES[id] ?? id,
+          accountKey: "accountKey" in entry && typeof entry.accountKey === "string" ? entry.accountKey : null,
+          accountLabel: entry.accountEmail ?? null,
+          usedPercent: w.usedPercent,
+          resetsAt: w.resetsAt,
+        }] : [];
       });
       const tokens = await tokensFor(weekly.map((w) => w.id));
       return {
-        harnesses: weekly.map((w) => ({ ...w, name: NAMES[w.id] ?? w.id, daily: tokens[w.id] ?? [] })),
+        harnesses: uniqueWeeklyAccounts([
+          ...weekly.map((w) => ({ ...w, daily: tokens[w.id] ?? [] })),
+          ...pooled,
+        ]),
         observedAt: Date.now(),
       };
     },
