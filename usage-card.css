@@ -118,6 +118,9 @@ section:has(> div > div > .bbb-card) {
 .bbb-day[data-empty] {
   background: var(--bbb-track);
 }
+.bbb-day[data-shared]:not([data-empty]) {
+  opacity: 0.45;
+}
 
 .bbb-pct {
   min-width: 1.75rem;

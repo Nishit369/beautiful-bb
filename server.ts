@@ -17,7 +17,7 @@ import {
 } from "./wallpapers";
 import { dailyTokens, type DailyTokens } from "./tokens";
 import { pooledWeeklyUsage, PROVIDER_NAMES, uniqueWeeklyAccounts, weeklyAccountSchema } from "./usage";
-import { trackUsage } from "./usage-history";
+import { dailyGains, dayBarSchema, dayBars, trackUsage } from "./usage-history";
 import { createSystemSampler, systemStatsSchema, topProcess } from "./system";
 import { prsResultSchema } from "./prs";
 import { myPullRequests, openInBrowser } from "./prs-source";
@@ -27,7 +27,7 @@ const TOKENS_TTL_MS = 5 * 60 * 1000;
 export const SETTINGS_CHANGED = "settings-changed";
 
 const harnessSchema = weeklyAccountSchema.omit({ accountKey: true }).extend({
-  daily: z.array(z.number().nullable()),
+  daily: z.array(dayBarSchema),
   historySince: z.string().nullable(),
 });
 export type HarnessUsage = z.infer<typeof harnessSchema>;
@@ -128,7 +128,7 @@ export default async function plugin(bb: BbPluginApi) {
     usageCard: {
       type: "boolean",
       label: "Usage card",
-      description: "Show each account's weekly limit and how much of it each of the last 7 days used, above the sidebar footer.",
+      description: "Show each account's weekly limit and 7-day activity above the sidebar footer.",
       default: true,
     },
     systemCard: {
@@ -263,12 +263,20 @@ export default async function plugin(bb: BbPluginApi) {
         }] : [];
       });
       const now = Date.now();
-      const harnesses = await Promise.all(uniqueWeeklyAccounts([...weekly, ...pooled]).map(async ({ accountKey, ...account }) => {
-        const series = await trackUsage(bb.storage.kv, { ...account, accountKey }, now).catch(() => {
+      const accounts = uniqueWeeklyAccounts([...weekly, ...pooled]);
+      const tokens = await tokensFor([...new Set(accounts.map((account) => account.providerId))]);
+      const harnesses = await Promise.all(accounts.map(async ({ accountKey, ...account }) => {
+        const history = await trackUsage(bb.storage.kv, { ...account, accountKey }, now).catch(() => {
           bb.log.warn(`Usage history for ${account.id} is unavailable.`);
-          return { daily: new Array<null>(7).fill(null), historySince: null };
+          return null;
         });
-        return { ...account, ...series };
+        const gains = history ? dailyGains(history, now) : new Array<null>(7).fill(null);
+        const sharedProvider = accounts.filter((other) => other.providerId === account.providerId).length > 1;
+        return {
+          ...account,
+          daily: dayBars(gains, tokens[account.providerId] ?? [], sharedProvider),
+          historySince: history?.since ?? null,
+        };
       }));
       return { harnesses, observedAt: now };
     },

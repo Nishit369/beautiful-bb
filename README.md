@@ -13,7 +13,7 @@ rail. Changes apply right away. The same settings are also available with
 | Text size | Slider from 85% to 140% that scales the active theme's own text sizes; 100% leaves them as the theme sets them | 100% |
 | PRs card | Your open pull requests with CI, review and merge state, above the system card | On |
 | System card | This Mac's live CPU and memory use above the usage card | On |
-| Usage card | Weekly limit and 7-day usage bars above the sidebar footer | On |
+| Usage card | Weekly limit and 7-day activity bars above the sidebar footer | On |
 | Agent activity | A wave on working threads in the sidebar, sparkles when one finishes | On |
 | Wave spinner | 4x4 shade grid instead of the "Working..." shimmer | On |
 | Composer accent | Thin accent border on the message box while typing | Off |
@@ -90,27 +90,30 @@ out, the card shows one line saying so.
 
 A compact card above the sidebar footer shows each signed-in account (Claude,
 Codex): its weekly limit as a progress bar with the time until reset, and a
-7-day bar graph of how much of that limit each day used. It stays dim until you
-hover or focus it.
+7-day bar graph of daily activity. It stays dim until you hover or focus it.
 
 Accounts signed in through BB's Account Pooler also appear, one compact row per
 account, with account details on hover. The same account signed in locally and
 in the pool appears once.
 
-Neither the providers nor the Account Pooler keep per-account history, and
-local session logs cannot tell accounts apart, so the card records it. Each
-refresh stores the account's weekly-limit reading in the plugin's storage,
-keeping eight days, and each day's bar is how many percentage points the limit
-grew that day. Days before recording started, or with no reading, show as
-empty slots; the graph's tooltip says when history began. Local and pooled
-rows use the same measure, so bars mean the same thing on every row.
+When a provider has one account, its bars are that provider's tokens per day
+from the local session logs. Those logs cannot tell a provider's accounts
+apart, and neither the providers nor the Account Pooler keep per-account
+history, so the card records it: each refresh stores every account's
+weekly-limit reading in the plugin's storage, keeping eight days. When a
+provider has several accounts, a day the account has its own reading for shows
+how many percentage points its weekly limit grew that day. Other days fall back
+to the provider-wide token activity, drawn fainter, and the tooltip says so.
+The first recorded day only starts the history, so per-account bars begin the
+day after. Rows switch to this mode on their own when a provider gains a
+second account.
 
 The sidebar footer shows one panel at a time, so opening bb's own Usage panel
 hides the card; it comes back as soon as you close that panel.
 
-The home greeting's token count comes from the harnesses' local session logs
-(`~/.claude/projects` and `~/.codex/sessions`), so work outside bb counts too.
-It includes input, output, cache writes, and cache reads.
+Token counts come from the harnesses' local session logs (`~/.claude/projects`
+and `~/.codex/sessions`), so work outside bb counts too. They include input,
+output, cache writes, and cache reads.
 
 ## System card
 

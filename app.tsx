@@ -1,7 +1,7 @@
 // Beautiful bb frontend entry. Registers every piece of the plugin: the PRs
 // card (prs-card.tsx), the system card (live CPU and memory) and the usage card
 // above the sidebar footer (one line per account: logo, weekly limit bar, 7-day
-// usage bars, percent used, time to reset), the home wallpaper and greeting,
+// activity bars, percent used, time to reset), the home wallpaper and greeting,
 // the settings page, the effects overlay, and command-menu actions.
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -40,24 +40,45 @@ function formatDay(day: string): string {
   return monthDay.format(new Date(year!, month! - 1, date));
 }
 
-/** Seven bars of how much of the weekly limit each day used, today on the right. */
-function UsageBars({ daily, historySince, now }: { daily: (number | null)[]; historySince: string | null; now: number }) {
-  const peak = Math.max(...daily.map((n) => n ?? 0), 1);
-  const total = daily.reduce<number>((sum, n) => sum + (n ?? 0), 0);
+const tokenCount = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
+
+type DayBar = HarnessUsage["daily"][number];
+
+function describeBar(bar: DayBar, providerName: string): string {
+  if (!bar) return "no reading";
+  if (bar.unit === "percent") return `This account, +${points.format(bar.amount)}% of the weekly limit`;
+  const tokens = `${tokenCount.format(bar.amount)} tokens`;
+  return bar.shared ? `${providerName}-wide activity (no per-account history yet), ${tokens}` : `This account, ${tokens}`;
+}
+
+function describeBars(daily: DayBar[], historySince: string | null, providerName: string): string {
+  if (!daily.some((bar) => bar?.shared)) {
+    const total = daily.reduce((sum, bar) => sum + (bar?.amount ?? 0), 0);
+    return `This account: ${tokenCount.format(total)} tokens in the last 7 days`;
+  }
+  const since = historySince ? `This account's history since ${formatDay(historySince)}. ` : "";
+  return `${since}Fainter bars are ${providerName}-wide activity (no per-account history yet).`;
+}
+
+/**
+ * Seven bars of daily activity, today on the right. Weekly-limit growth and
+ * token counts are scaled separately, each against its own busiest day.
+ */
+function UsageBars({ daily, historySince, providerName, now }: { daily: DayBar[]; historySince: string | null; providerName: string; now: number }) {
+  const peak = (unit: string) => Math.max(...daily.map((bar) => (bar?.unit === unit ? bar.amount : 0)), 1);
+  const peaks = { percent: peak("percent"), tokens: peak("tokens") };
   return (
-    <span
-      className="bbb-bars"
-      title={historySince ? `+${points.format(total)}% of the weekly limit in the last 7 days, history since ${formatDay(historySince)}` : "No usage history yet"}
-    >
-      {daily.map((n, i) => {
+    <span className="bbb-bars" title={describeBars(daily, historySince, providerName)}>
+      {daily.map((bar, i) => {
         const day = weekday.format(now - (daily.length - 1 - i) * DAY_MS);
         return (
           <span
             key={i}
             className="bbb-day"
-            data-empty={!n || undefined}
-            style={{ height: `${Math.max(((n ?? 0) / peak) * 100, 12)}%` }}
-            title={n === null ? `${day}: no reading` : `${day}: +${points.format(n)}% of the weekly limit`}
+            data-empty={!bar?.amount || undefined}
+            data-shared={bar?.shared || undefined}
+            style={{ height: `${Math.max(bar ? (bar.amount / peaks[bar.unit]) * 100 : 0, 12)}%` }}
+            title={`${day}: ${describeBar(bar, providerName)}`}
           />
         );
       })}
@@ -83,7 +104,7 @@ function HarnessRow({ h, now }: { h: HarnessUsage; now: number }) {
       <span className="bbb-bar" aria-hidden="true">
         <span style={{ width: `${used}%`, backgroundSize: `${used > 0 ? 10000 / used : 100}% 100%` }} />
       </span>
-      <UsageBars daily={h.daily} historySince={h.historySince} now={now} />
+      <UsageBars daily={h.daily} historySince={h.historySince} providerName={h.name} now={now} />
       <span className="bbb-pct">{h.usedPercent}%</span>
       <span className="bbb-in" title={`Resets ${dayTime.format(resetsAt)}`}>
         {until(resetsAt - now)}
@@ -92,7 +113,7 @@ function HarnessRow({ h, now }: { h: HarnessUsage; now: number }) {
   );
 }
 
-const USAGE_KEY = "beautiful-bb:weekly-usage-v2";
+const USAGE_KEY = "beautiful-bb:weekly-usage-v3";
 
 /** The last reading, so a restarted plugin server (cold caches, a slow first call) still shows rows. */
 function readCachedUsage(): { harnesses: HarnessUsage[]; observedAt: number } | null {
