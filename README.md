@@ -95,15 +95,16 @@ focus it.
 
 Accounts signed in through BB's Account Pooler also appear, one compact row per
 account, with account details on hover. The same account signed in locally and
-in the pool appears once. Token graphs stay with local harnesses; local logs
-cannot attribute pooled requests to individual accounts.
+in the pool appears once. Every row shows its provider's token graph, including
+pooled accounts. The graph combines all accounts on this machine; its tooltip
+states that scope because local logs do not identify individual accounts.
 
 The sidebar footer shows one panel at a time, so opening bb's own Usage panel
 hides the card; it comes back as soon as you close that panel.
 
 Token counts come from the harnesses' local session logs (`~/.claude/projects`
 and `~/.codex/sessions`), so work outside bb counts too. They include input,
-output, and cache writes, not cache reads.
+output, cache writes, and cache reads.
 
 ## System card
 

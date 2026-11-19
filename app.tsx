@@ -44,20 +44,22 @@ const tokenCount = new Intl.NumberFormat(undefined, { notation: "compact", maxim
 const weekday = new Intl.DateTimeFormat(undefined, { weekday: "short" });
 
 /** Seven bars of tokens per day, today on the right. */
-function TokenBars({ daily, now }: { daily: number[]; now: number }) {
-  const peak = Math.max(...daily, 1);
-  const total = daily.reduce((sum, n) => sum + n, 0);
+function TokenBars({ daily, now, providerName }: { daily: number[]; now: number; providerName: string }) {
+  const days = daily.length > 0 ? daily : new Array<number>(7).fill(0);
+  const peak = Math.max(...days, 1);
+  const total = days.reduce((sum, n) => sum + n, 0);
+  const scope = `${providerName} on this machine, all accounts`;
   return (
-    <span className="bbb-bars" title={`${tokenCount.format(total)} tokens in the last 7 days`}>
-      {daily.map((n, i) => {
-        const day = weekday.format(now - (daily.length - 1 - i) * DAY_MS);
+    <span className="bbb-bars" title={daily.length > 0 ? `${scope}: ${tokenCount.format(total)} tokens in the last 7 days` : `${scope}: no local token history available`}>
+      {days.map((n, i) => {
+        const day = weekday.format(now - (days.length - 1 - i) * DAY_MS);
         return (
           <span
             key={i}
             className="bbb-day"
             data-empty={n === 0 || undefined}
             style={{ height: `${Math.max((n / peak) * 100, 12)}%` }}
-            title={`${day}: ${tokenCount.format(n)} tokens`}
+            title={daily.length > 0 ? `${scope}, ${day}: ${tokenCount.format(n)} tokens` : `${day}: no local token history available`}
           />
         );
       })}
@@ -83,7 +85,7 @@ function HarnessRow({ h, now }: { h: HarnessUsage; now: number }) {
       <span className="bbb-bar" aria-hidden="true">
         <span style={{ width: `${used}%`, backgroundSize: `${used > 0 ? 10000 / used : 100}% 100%` }} />
       </span>
-      {h.daily.length > 0 ? <TokenBars daily={h.daily} now={now} /> : <span className="bbb-bars" aria-hidden="true" />}
+      <TokenBars daily={h.daily} now={now} providerName={h.name} />
       <span className="bbb-pct">{h.usedPercent}%</span>
       <span className="bbb-in" title={`Resets ${dayTime.format(resetsAt)}`}>
         {until(resetsAt - now)}

@@ -258,12 +258,16 @@ export default async function plugin(bb: BbPluginApi) {
           resetsAt: w.resetsAt,
         }] : [];
       });
-      const tokens = await tokensFor(weekly.map((w) => w.id));
+      const accounts = uniqueWeeklyAccounts([
+        ...weekly.map((account) => ({ ...account, daily: [] })),
+        ...pooled,
+      ]);
+      const tokens = await tokensFor([...new Set(accounts.map((account) => account.providerId))]);
       return {
-        harnesses: uniqueWeeklyAccounts([
-          ...weekly.map((w) => ({ ...w, daily: tokens[w.id] ?? [] })),
-          ...pooled,
-        ]),
+        harnesses: accounts.map((account) => ({
+          ...account,
+          daily: tokens[account.providerId] ?? [],
+        })),
         observedAt: Date.now(),
       };
     },
