@@ -31,26 +31,34 @@ section:has(> div > div > .bbb-card) {
 
 .bbb-card {
   --bbb-tint: var(--bbb-accent, var(--primary));
-  --bbb-track: color-mix(in oklch, var(--ink, currentColor) 10%, transparent);
+  --bbb-track: color-mix(in oklab, var(--ink, currentColor) 10%, transparent);
   --bbb-bar-fill: linear-gradient(
     90deg,
-    color-mix(in oklch, var(--ink, currentColor) 65%, transparent) 0 45%,
+    color-mix(in oklab, var(--ink, currentColor) 65%, transparent) 0 45%,
     var(--warning) 72%,
     var(--destructive)
   );
   padding: 0.375rem 0.625rem;
   border: 1px solid var(--sidebar-border, var(--border));
   border-radius: var(--radius-lg, 0.625rem);
-  background: color-mix(in oklch, var(--sidebar-accent, var(--muted)) 50%, transparent);
+  background: color-mix(in oklab, var(--sidebar-accent, var(--muted)) 50%, transparent);
   color: var(--sidebar-foreground, var(--foreground));
 }
 .bbb-card + .bbb-card {
   margin-top: 0.375rem;
 }
 
-/* Only the contents dim, so the frame stays crisp. */
+/* Only the contents dim, so the frame stays crisp. Gray ink faded over a
+   light sidebar washes out faster than light ink over a dark one, so light
+   themes rest a little brighter to dim about as much. */
+.bbb-card {
+  --bbb-rest: 0.4;
+}
+:root:not(.dark) .bbb-card {
+  --bbb-rest: 0.55;
+}
 .bbb-card > * {
-  opacity: 0.4;
+  opacity: var(--bbb-rest);
   transition: opacity var(--bbb-dur) var(--bbb-ease-out);
 }
 
@@ -60,7 +68,7 @@ section:has(> div > div > .bbb-card) {
 }
 
 .bbb-card:focus-visible {
-  outline: 2px solid color-mix(in oklch, var(--primary) 60%, transparent);
+  outline: 2px solid color-mix(in oklab, var(--primary) 60%, transparent);
   outline-offset: -2px;
   border-radius: inherit;
 }
@@ -104,7 +112,7 @@ section:has(> div > div > .bbb-card) {
   width: 3px;
   border-radius: 1px;
   /* Sized to the whole graph, so taller days end in the full accent. */
-  background: linear-gradient(to top, color-mix(in oklch, var(--bbb-tint) 55%, transparent), var(--bbb-tint)) bottom /
+  background: linear-gradient(to top, color-mix(in oklab, var(--bbb-tint) 55%, transparent), var(--bbb-tint)) bottom /
     100% 0.625rem no-repeat;
 }
 .bbb-day[data-empty] {

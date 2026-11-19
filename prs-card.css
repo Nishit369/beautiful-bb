@@ -8,11 +8,22 @@
 .bbb-prs-head,
 .bbb-prs-panel {
   /* Opaque, so the threads underneath don't show through: the card's tint over the sidebar. */
-  --bbb-pr-surface: color-mix(in oklch, var(--sidebar-accent, var(--muted)) 50%, var(--sidebar, var(--background)));
-  --bbb-pr-neutral: color-mix(in oklch, var(--ink, currentColor) 50%, transparent);
-  --bbb-pr-lift: color-mix(in oklch, var(--ink, currentColor) 7%, transparent);
+  --bbb-pr-surface: color-mix(in oklab, var(--sidebar-accent, var(--muted)) 50%, var(--sidebar, var(--background)));
+  --bbb-pr-neutral: color-mix(in oklab, var(--ink, currentColor) 50%, transparent);
+  /* Muted text, nudged toward the foreground so it stays above 4.5:1 on the panel, hover included. */
+  --bbb-pr-quiet: color-mix(in oklab, var(--muted-foreground) 75%, var(--sidebar-foreground, var(--foreground)));
+  /* bb's hover tint is a wash of ink: 5.9% in light, 13.8% in dark. Rows use
+     about 70% of it, since a tall row at full strength reads as a slab. Built
+     from ink rather than --state-hover, which some themes set to an opaque
+     color close to this panel's surface. */
+  --bbb-pr-hover: color-mix(in oklab, var(--ink, currentColor) 4%, transparent);
+  --bbb-pr-line: var(--sidebar-border, var(--border));
   --bbb-pr-row: 2.375rem;
   --bbb-pr-rows: 6;
+}
+.dark .bbb-prs-head,
+.dark .bbb-prs-panel {
+  --bbb-pr-hover: color-mix(in oklab, var(--ink, currentColor) 10%, transparent);
 }
 
 .bbb-pr-icon {
@@ -35,7 +46,7 @@
 .bbb-prs-head:focus-visible,
 .bbb-pr:focus-visible,
 .bbb-chip:focus-visible {
-  outline: 2px solid color-mix(in oklch, var(--primary) 60%, transparent);
+  outline: 2px solid color-mix(in oklab, var(--primary) 60%, transparent);
   outline-offset: -2px;
 }
 
@@ -57,16 +68,12 @@
   font-size: var(--text-2xs, 0.6875rem);
   line-height: 1.125rem;
   text-align: left;
-  transition: background-color var(--bbb-dur-hover) var(--bbb-ease-out);
 }
 button.bbb-prs-head {
   cursor: pointer;
 }
-button.bbb-prs-head:hover,
-button.bbb-prs-head[aria-expanded="true"] {
-  background: var(--bbb-pr-lift);
-}
-/* An open panel keeps its header lit. */
+/* Like the usage rows, the header has no fill of its own: the card lights up
+   on hover, and an open panel keeps it lit. */
 .bbb-card.bbb-prs:has([aria-expanded="true"]) > * {
   opacity: 1;
 }
@@ -126,14 +133,13 @@ button.bbb-prs-head[aria-expanded="true"] {
   box-sizing: border-box;
   height: 100%;
   overflow: hidden;
-  border: 1px solid var(--sidebar-border, var(--border));
+  border: 1px solid var(--bbb-pr-line);
   border-radius: var(--radius-lg, 0.625rem);
   background: var(--bbb-pr-surface);
   color: var(--sidebar-foreground, var(--foreground));
   font-family: var(--font-sans);
-  box-shadow:
-    0 0.75rem 2rem -0.5rem color-mix(in oklch, black 35%, transparent),
-    0 0.125rem 0.375rem color-mix(in oklch, black 12%, transparent);
+  /* bb's shadow for surfaces that rise from below, like its composer: soft in light, deeper in dark. */
+  box-shadow: var(--shadow-lift, 0 -0.25rem 0.75rem -0.25rem color-mix(in oklab, black 12%, transparent));
   pointer-events: auto;
   transition:
     height var(--bbb-dur) var(--bbb-ease-out),
@@ -190,10 +196,10 @@ button.bbb-prs-head[aria-expanded="true"] {
   flex-shrink: 0;
   height: 1.25rem;
   padding: 0 0.4375rem;
-  border: 1px solid var(--sidebar-border, var(--border));
+  border: 1px solid var(--bbb-pr-line);
   border-radius: 999px;
   background: none;
-  color: var(--muted-foreground);
+  color: var(--bbb-pr-quiet);
   font: inherit;
   font-size: var(--text-2xs, 0.6875rem);
   line-height: 1;
@@ -206,11 +212,12 @@ button.bbb-prs-head[aria-expanded="true"] {
 }
 .bbb-chip:hover {
   color: var(--sidebar-foreground, var(--foreground));
-  background: color-mix(in oklch, var(--ink, currentColor) 5%, transparent);
+  background: var(--bbb-pr-hover);
 }
+/* A light wash of the theme's accent, never a solid block. */
 .bbb-chip[aria-pressed="true"] {
-  border-color: color-mix(in oklch, var(--ink, currentColor) 30%, transparent);
-  background: color-mix(in oklch, var(--ink, currentColor) 10%, transparent);
+  border-color: color-mix(in oklab, var(--primary) 20%, var(--bbb-pr-line));
+  background: color-mix(in oklab, var(--primary) 9%, transparent);
   color: var(--sidebar-foreground, var(--foreground));
 }
 .bbb-chip[data-empty]:not([aria-pressed="true"]) {
@@ -228,8 +235,10 @@ button.bbb-prs-head[aria-expanded="true"] {
 }
 
 /* The list fills the rest of the fixed panel and scrolls both ways, so full
-   titles can be read. The top and bottom edges fade only while there is more
-   that way; the side edges hold each row's pinned parts. */
+   titles can be read. A hairline under the chips always separates them from
+   the list. The top and bottom edges fade into the panel only while there is
+   more that way, and the top fade starts below the hairline so it never
+   dims it. The side edges hold each row's pinned parts. */
 .bbb-prs-list {
   --bbb-fade-top: black;
   --bbb-fade-bottom: black;
@@ -237,10 +246,17 @@ button.bbb-prs-head[aria-expanded="true"] {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  border-top: 1px solid var(--sidebar-border, var(--border));
+  border-top: 1px solid var(--bbb-pr-line);
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklch, var(--ink, currentColor) 22%, transparent) transparent;
-  mask-image: linear-gradient(to bottom, var(--bbb-fade-top), black 1.25rem, black calc(100% - 1.25rem), var(--bbb-fade-bottom));
+  scrollbar-color: color-mix(in oklab, var(--ink, currentColor) 22%, transparent) transparent;
+  mask-image: linear-gradient(
+    to bottom,
+    black 1px,
+    var(--bbb-fade-top) 1px,
+    black calc(1px + 1rem),
+    black calc(100% - 1rem),
+    var(--bbb-fade-bottom)
+  );
 }
 .bbb-prs-list[data-more-above] {
   --bbb-fade-top: transparent;
@@ -263,9 +279,16 @@ button.bbb-prs-head[aria-expanded="true"] {
 
 /* Row: the state icon pinned at the left edge and lines changed pinned at
    the right, both opaque, so the title and its quiet line slide under them
-   when the list scrolls sideways. The tooltip has the rest. */
+   when the list scrolls sideways. The tooltip has the rest. Hover lays bb's
+   hover tint over the row and both pinned parts, which repaint the panel
+   surface under it; the tint is a registered color so all three fade together. */
+@property --bbb-pr-tint {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
 .bbb-pr {
-  --bbb-pr-bg: var(--bbb-pr-surface);
+  --bbb-pr-tint: transparent;
   display: flex;
   align-items: stretch;
   box-sizing: border-box;
@@ -274,11 +297,11 @@ button.bbb-prs-head[aria-expanded="true"] {
   color: var(--sidebar-foreground, var(--foreground));
   text-decoration: none;
   white-space: nowrap;
-  transition: background-color var(--bbb-dur-hover) var(--bbb-ease-out);
+  background: var(--bbb-pr-tint);
+  transition: --bbb-pr-tint var(--bbb-dur-hover) var(--bbb-ease-out);
 }
 .bbb-pr:hover {
-  --bbb-pr-bg: color-mix(in oklch, var(--ink, currentColor) 7%, var(--bbb-pr-surface));
-  background: var(--bbb-pr-bg);
+  --bbb-pr-tint: var(--bbb-pr-hover);
 }
 .bbb-pr-state,
 .bbb-pr-diff {
@@ -286,8 +309,10 @@ button.bbb-prs-head[aria-expanded="true"] {
   z-index: 1;
   flex-shrink: 0;
   padding-top: 0.25rem;
-  background: var(--bbb-pr-bg);
-  transition: background-color var(--bbb-dur-hover) var(--bbb-ease-out);
+}
+.bbb-pr-state,
+.bbb-pr-diff::before {
+  background: linear-gradient(var(--bbb-pr-tint), var(--bbb-pr-tint)), var(--bbb-pr-surface);
 }
 .bbb-pr-state {
   left: 0;
@@ -306,11 +331,18 @@ button.bbb-prs-head[aria-expanded="true"] {
   min-width: 4.25rem;
   padding: 0.3125rem 0.5rem 0 0.875rem;
   border-radius: inherit;
-  background: linear-gradient(to right, transparent, var(--bbb-pr-bg) 0.625rem);
   font-size: var(--text-2xs, 0.6875rem);
   line-height: 0.9375rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+.bbb-pr-diff::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  mask-image: linear-gradient(to right, transparent, black 0.625rem);
 }
 .bbb-pr-diff ins {
   color: var(--diff-added, var(--muted-foreground));
@@ -331,13 +363,13 @@ button.bbb-prs-head[aria-expanded="true"] {
   line-height: 1rem;
 }
 .bbb-pr-sub {
-  color: var(--muted-foreground);
+  color: var(--bbb-pr-quiet);
   font-size: var(--text-2xs, 0.6875rem);
   line-height: 0.875rem;
   font-variant-numeric: tabular-nums;
 }
 .bbb-pr[data-draft] {
-  color: var(--muted-foreground);
+  color: var(--bbb-pr-quiet);
 }
 .bbb-pr[data-draft] .bbb-pr-state > svg {
   opacity: 0.7;
@@ -355,12 +387,8 @@ button.bbb-prs-head[aria-expanded="true"] {
 @media (prefers-reduced-motion: reduce) {
   .bbb-prs-sheet,
   .bbb-prs-panel:not([data-open]) .bbb-prs-sheet,
-  .bbb-prs-stale {
-  display: inline-flex;
-  opacity: 0.7;
-}
-
-.bbb-prs-head > .bbb-pr-icon:last-child {
+  .bbb-prs-head > .bbb-pr-icon:last-child,
+  .bbb-pr {
     transition: none;
   }
 }
