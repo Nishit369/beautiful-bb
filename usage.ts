@@ -11,7 +11,6 @@ export const weeklyAccountSchema = z.object({
   accountLabel: z.string().nullable(),
   usedPercent: z.number(),
   resetsAt: z.string(),
-  daily: z.array(z.number()),
 });
 export type WeeklyAccount = z.infer<typeof weeklyAccountSchema>;
 
@@ -79,7 +78,6 @@ export async function pooledWeeklyUsage(bb: BbPluginApi): Promise<WeeklyAccount[
       accountLabel,
       usedPercent: window.usedPercent,
       resetsAt: window.resetsAt,
-      daily: [],
     }];
   }));
   return results.flatMap((result) => {

@@ -31,7 +31,7 @@ function pool({ enabled = true, resources = [resource], measure = () => measurem
   };
 }
 
-test("a pooled account shows its overall weekly quota and identity without borrowing local token totals", async () => {
+test("a pooled account shows its overall weekly quota and identity", async () => {
   const rows = await pooledWeeklyUsage(pool());
   assert.deepEqual(rows, [{
     id: "account-pool:second",
@@ -41,7 +41,6 @@ test("a pooled account shows its overall weekly quota and identity without borro
     accountLabel: "second@example.com",
     usedPercent: 23,
     resetsAt: "2026-11-26T00:00:00Z",
-    daily: [],
   }]);
 });
 
@@ -64,7 +63,7 @@ test("disabled pools and expired logins do not produce misleading quota rows", a
 
 test("the same native and pooled account appears once; distinct and unknown accounts stay separate", async () => {
   const [pooled] = await pooledWeeklyUsage(pool());
-  const local = { ...pooled, id: "claude-code", daily: [100] };
+  const local = { ...pooled, id: "claude-code" };
   const other = { ...pooled, id: "third", accountKey: "anthropic:third" };
   const unknownLocal = { ...local, accountKey: null };
   const unknownPool = { ...pooled, accountKey: null };

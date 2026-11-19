@@ -17,6 +17,7 @@ import {
 } from "./wallpapers";
 import { dailyTokens, type DailyTokens } from "./tokens";
 import { pooledWeeklyUsage, PROVIDER_NAMES, uniqueWeeklyAccounts, weeklyAccountSchema } from "./usage";
+import { trackUsage } from "./usage-history";
 import { createSystemSampler, systemStatsSchema, topProcess } from "./system";
 import { prsResultSchema } from "./prs";
 import { myPullRequests, openInBrowser } from "./prs-source";
@@ -25,7 +26,10 @@ const TOKENS_TTL_MS = 5 * 60 * 1000;
 /** Realtime channel: published whenever a setting changes, so every window re-applies. */
 export const SETTINGS_CHANGED = "settings-changed";
 
-const harnessSchema = weeklyAccountSchema.omit({ accountKey: true });
+const harnessSchema = weeklyAccountSchema.omit({ accountKey: true }).extend({
+  daily: z.array(z.number().nullable()),
+  historySince: z.string().nullable(),
+});
 export type HarnessUsage = z.infer<typeof harnessSchema>;
 
 const catalogFontSchema = z.object({ family: z.string(), category: z.string() });
@@ -124,7 +128,7 @@ export default async function plugin(bb: BbPluginApi) {
     usageCard: {
       type: "boolean",
       label: "Usage card",
-      description: "Show each agent's weekly limit and 7-day token use above the sidebar footer.",
+      description: "Show each account's weekly limit and how much of it each of the last 7 days used, above the sidebar footer.",
       default: true,
     },
     systemCard: {
@@ -258,18 +262,15 @@ export default async function plugin(bb: BbPluginApi) {
           resetsAt: w.resetsAt,
         }] : [];
       });
-      const accounts = uniqueWeeklyAccounts([
-        ...weekly.map((account) => ({ ...account, daily: [] })),
-        ...pooled,
-      ]);
-      const tokens = await tokensFor([...new Set(accounts.map((account) => account.providerId))]);
-      return {
-        harnesses: accounts.map((account) => ({
-          ...account,
-          daily: tokens[account.providerId] ?? [],
-        })),
-        observedAt: Date.now(),
-      };
+      const now = Date.now();
+      const harnesses = await Promise.all(uniqueWeeklyAccounts([...weekly, ...pooled]).map(async ({ accountKey, ...account }) => {
+        const series = await trackUsage(bb.storage.kv, { ...account, accountKey }, now).catch(() => {
+          bb.log.warn(`Usage history for ${account.id} is unavailable.`);
+          return { daily: new Array<null>(7).fill(null), historySince: null };
+        });
+        return { ...account, ...series };
+      }));
+      return { harnesses, observedAt: now };
     },
     my_prs: ({ refresh }) => myPullRequests(refresh, (message) => bb.log.warn(message)),
     open_pr: openInBrowser,

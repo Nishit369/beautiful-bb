@@ -1,7 +1,7 @@
 // Beautiful bb frontend entry. Registers every piece of the plugin: the PRs
 // card (prs-card.tsx), the system card (live CPU and memory) and the usage card
-// above the sidebar footer (one line per harness: logo, weekly limit bar, 7-day
-// token bars, percent used, time to reset), the home wallpaper and greeting,
+// above the sidebar footer (one line per account: logo, weekly limit bar, 7-day
+// usage bars, percent used, time to reset), the home wallpaper and greeting,
 // the settings page, the effects overlay, and command-menu actions.
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -25,41 +25,39 @@ import { toggleColorMode } from "./color-mode";
 import { PrsCard } from "./prs-card";
 import { SystemCard } from "./system-card";
 import { usePreferences } from "./use-preferences";
+import { until } from "./duration";
 
 const REFRESH_MS = 2 * 60 * 1000;
-const HOUR_MS = 60 * 60 * 1000;
-const DAY_MS = 24 * HOUR_MS;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const dayTime = new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
+const weekday = new Intl.DateTimeFormat(undefined, { weekday: "short" });
+const monthDay = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+const points = new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 });
 
-function until(ms: number): string {
-  if (ms < HOUR_MS) return `${Math.max(1, Math.round(ms / 60000))}m`;
-  if (ms < DAY_MS) return `${Math.round(ms / HOUR_MS)}h`;
-  const days = Math.floor(ms / DAY_MS);
-  const hours = Math.round((ms % DAY_MS) / HOUR_MS);
-  return hours ? `${days}d ${hours}h` : `${days}d`;
+function formatDay(day: string): string {
+  const [year, month, date] = day.split("-").map(Number);
+  return monthDay.format(new Date(year!, month! - 1, date));
 }
 
-const tokenCount = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
-const weekday = new Intl.DateTimeFormat(undefined, { weekday: "short" });
-
-/** Seven bars of tokens per day, today on the right. */
-function TokenBars({ daily, now, providerName }: { daily: number[]; now: number; providerName: string }) {
-  const days = daily.length > 0 ? daily : new Array<number>(7).fill(0);
-  const peak = Math.max(...days, 1);
-  const total = days.reduce((sum, n) => sum + n, 0);
-  const scope = `${providerName} on this machine, all accounts`;
+/** Seven bars of how much of the weekly limit each day used, today on the right. */
+function UsageBars({ daily, historySince, now }: { daily: (number | null)[]; historySince: string | null; now: number }) {
+  const peak = Math.max(...daily.map((n) => n ?? 0), 1);
+  const total = daily.reduce<number>((sum, n) => sum + (n ?? 0), 0);
   return (
-    <span className="bbb-bars" title={daily.length > 0 ? `${scope}: ${tokenCount.format(total)} tokens in the last 7 days` : `${scope}: no local token history available`}>
-      {days.map((n, i) => {
-        const day = weekday.format(now - (days.length - 1 - i) * DAY_MS);
+    <span
+      className="bbb-bars"
+      title={historySince ? `+${points.format(total)}% of the weekly limit in the last 7 days, history since ${formatDay(historySince)}` : "No usage history yet"}
+    >
+      {daily.map((n, i) => {
+        const day = weekday.format(now - (daily.length - 1 - i) * DAY_MS);
         return (
           <span
             key={i}
             className="bbb-day"
-            data-empty={n === 0 || undefined}
-            style={{ height: `${Math.max((n / peak) * 100, 12)}%` }}
-            title={daily.length > 0 ? `${scope}, ${day}: ${tokenCount.format(n)} tokens` : `${day}: no local token history available`}
+            data-empty={!n || undefined}
+            style={{ height: `${Math.max(((n ?? 0) / peak) * 100, 12)}%` }}
+            title={n === null ? `${day}: no reading` : `${day}: +${points.format(n)}% of the weekly limit`}
           />
         );
       })}
@@ -85,7 +83,7 @@ function HarnessRow({ h, now }: { h: HarnessUsage; now: number }) {
       <span className="bbb-bar" aria-hidden="true">
         <span style={{ width: `${used}%`, backgroundSize: `${used > 0 ? 10000 / used : 100}% 100%` }} />
       </span>
-      <TokenBars daily={h.daily} now={now} providerName={h.name} />
+      <UsageBars daily={h.daily} historySince={h.historySince} now={now} />
       <span className="bbb-pct">{h.usedPercent}%</span>
       <span className="bbb-in" title={`Resets ${dayTime.format(resetsAt)}`}>
         {until(resetsAt - now)}
@@ -94,7 +92,7 @@ function HarnessRow({ h, now }: { h: HarnessUsage; now: number }) {
   );
 }
 
-const USAGE_KEY = "beautiful-bb:weekly-usage";
+const USAGE_KEY = "beautiful-bb:weekly-usage-v2";
 
 /** The last reading, so a restarted plugin server (cold caches, a slow first call) still shows rows. */
 function readCachedUsage(): { harnesses: HarnessUsage[]; observedAt: number } | null {
