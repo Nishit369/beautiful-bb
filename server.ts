@@ -21,14 +21,18 @@ import { dailyGains, dayBarSchema, dayBars, trackUsage } from "./usage-history";
 import { createSystemSampler, systemStatsSchema, topProcess } from "./system";
 import { prsResultSchema } from "./prs";
 import { myPullRequests, openInBrowser } from "./prs-source";
+import { claudeCredits, creditsSchema, type Credits } from "./credits";
 
 const TOKENS_TTL_MS = 5 * 60 * 1000;
+const CREDITS_TTL_MS = 5 * 60 * 1000;
 /** Realtime channel: published whenever a setting changes, so every window re-applies. */
 export const SETTINGS_CHANGED = "settings-changed";
 
 const harnessSchema = weeklyAccountSchema.omit({ accountKey: true }).extend({
   daily: z.array(dayBarSchema),
   historySince: z.string().nullable(),
+  /** Claude's usage credits, on the local Claude Code account only. */
+  credits: creditsSchema,
 });
 export type HarnessUsage = z.infer<typeof harnessSchema>;
 
@@ -128,7 +132,8 @@ export default async function plugin(bb: BbPluginApi) {
     usageCard: {
       type: "boolean",
       label: "Usage card",
-      description: "Show each account's weekly limit, 5-hour limit where the plan has one, and 7-day activity above the sidebar footer.",
+      description:
+        "Show each account's weekly limit, 5-hour limit where the plan has one, Claude's usage credits, and 7-day activity above the sidebar footer.",
       default: true,
     },
     systemCard: {
@@ -235,6 +240,19 @@ export default async function plugin(bb: BbPluginApi) {
     return tokensCache.byProvider;
   }
 
+  // The usage endpoint is rate limited; read it every few minutes and keep the last good reading.
+  let creditsCache: { at: number; credits: Credits } | null = null;
+  async function credits(): Promise<Credits> {
+    if (creditsCache && Date.now() - creditsCache.at < CREDITS_TTL_MS) return creditsCache.credits;
+    try {
+      creditsCache = { at: Date.now(), credits: await claudeCredits() };
+    } catch {
+      bb.log.warn("Claude usage credits are unavailable.");
+      creditsCache = { at: Date.now(), credits: creditsCache?.credits ?? null };
+    }
+    return creditsCache.credits;
+  }
+
   const system = createSystemSampler();
 
   bb.rpc.register(rpcContract, {
@@ -265,7 +283,10 @@ export default async function plugin(bb: BbPluginApi) {
       });
       const now = Date.now();
       const accounts = uniqueWeeklyAccounts([...weekly, ...pooled]);
-      const tokens = await tokensFor([...new Set(accounts.map((account) => account.providerId))]);
+      const [tokens, claude] = await Promise.all([
+        tokensFor([...new Set(accounts.map((account) => account.providerId))]),
+        accounts.some((account) => account.id === "claude-code") ? credits() : null,
+      ]);
       const harnesses = await Promise.all(accounts.map(async ({ accountKey, ...account }) => {
         const history = await trackUsage(bb.storage.kv, { ...account, accountKey }, now).catch(() => {
           bb.log.warn(`Usage history for ${account.id} is unavailable.`);
@@ -277,6 +298,7 @@ export default async function plugin(bb: BbPluginApi) {
           ...account,
           daily: dayBars(gains, tokens[account.providerId] ?? [], sharedProvider),
           historySince: history?.since ?? null,
+          credits: account.id === "claude-code" ? claude : null,
         };
       }));
       return { harnesses, observedAt: now };

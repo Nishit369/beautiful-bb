@@ -1,8 +1,9 @@
 // Beautiful bb frontend entry. Registers every piece of the plugin: the PRs
 // card (prs-card.tsx), the system card (live CPU and memory) and the usage card
 // above the sidebar footer (one line per account: logo, weekly limit bar, 7-day
-// activity bars, percent used, time to reset; and a 5-hour limit line under it
-// when the plan has one), the home wallpaper and greeting,
+// activity bars, percent used, time to reset; a 5-hour limit line under it
+// when the plan has one; and Claude's usage credits spent under that), the home
+// wallpaper and greeting,
 // the settings page, the effects overlay, and command-menu actions.
 import { Fragment, useCallback, useEffect, useState } from "react";
 import {
@@ -139,7 +140,41 @@ function SessionRow({ h, now }: { h: HarnessUsage; now: number }) {
   );
 }
 
-const USAGE_KEY = "beautiful-bb:weekly-usage-v3";
+function formatMoney(cents: number, currency: string): string {
+  const amount = cents / 100;
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: amount >= 100 || Number.isInteger(amount) ? 0 : 2,
+      minimumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    return `${points.format(amount)} ${currency}`;
+  }
+}
+
+function CreditsRow({ h }: { h: HarnessUsage }) {
+  if (!h.credits) return null;
+  const { usedCents, limitCents, currency, enabled } = h.credits;
+  const name = h.accountLabel ? `${h.name} — ${h.accountLabel}` : h.name;
+  const spent = formatMoney(usedCents, currency);
+  const limit = limitCents === null ? null : formatMoney(limitCents, currency);
+  const used = limitCents ? Math.min(Math.max((usedCents / limitCents) * 100, 0), 100) : 0;
+  const detail = `${spent} spent this month${limit ? ` of a ${limit} monthly limit` : ", no monthly limit"}${enabled ? "" : ", credits off"}`;
+  return (
+    <li className="bbb-row bbb-session bbb-credits" title={`${name}, usage credits: ${detail}`} aria-label={`${name}: ${detail}.`}>
+      <span className="bbb-window" aria-hidden="true">$</span>
+      <span className="bbb-bar" aria-hidden="true">
+        <span style={{ width: `${used}%`, backgroundSize: `${used > 0 ? 10000 / used : 100}% 100%` }} />
+      </span>
+      <span className="bbb-spent" aria-hidden="true">{spent}</span>
+      <span className="bbb-in" aria-hidden="true">{limit ? `of ${limit}` : "no limit"}</span>
+    </li>
+  );
+}
+
+const USAGE_KEY = "beautiful-bb:weekly-usage-v4";
 
 /** The last reading, so a restarted plugin server (cold caches, a slow first call) still shows rows. */
 function readCachedUsage(): { harnesses: HarnessUsage[]; observedAt: number } | null {
@@ -195,6 +230,7 @@ function WeeklyUsageCard() {
           <Fragment key={harness.id}>
             <HarnessRow h={harness} now={now} />
             <SessionRow h={harness} now={now} />
+            <CreditsRow h={harness} />
           </Fragment>
         ))}
       </ul>

@@ -1,5 +1,5 @@
 /* Weekly usage card. One fixed line per account, plus a 5-hour line where the
-   plan has that limit; hover or keyboard focus only lifts the opacity, nothing
+   plan has that limit and a "$" line for Claude's usage credits; hover or keyboard focus only lifts the opacity, nothing
    resizes. The active theme's accent (lavender in
    T3 Night) colors every day bar so the rows read as a set. Limit bars share
    one value scale with the system card: neutral gray through normal values,
@@ -102,6 +102,19 @@ section:has(> div > div > .bbb-card) {
 }
 .bbb-session {
   margin-top: -0.125rem;
+}
+
+/* Usage credits spent fill the graph and percent columns, so the amount fits. */
+.bbb-spent {
+  grid-column: span 2;
+  text-align: right;
+  font-size: var(--text-2xs, 0.6875rem);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bbb-credits .bbb-in {
+  white-space: nowrap;
 }
 
 .bbb-icon {

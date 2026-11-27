@@ -13,7 +13,7 @@ rail. Changes apply right away. The same settings are also available with
 | Text size | Slider from 85% to 140% that scales the active theme's own text sizes; 100% leaves them as the theme sets them | 100% |
 | PRs card | Your open pull requests with CI, review and merge state, above the system card | On |
 | System card | This Mac's live CPU and memory use above the usage card | On |
-| Usage card | Weekly limit, 5-hour limit where the plan has one, and 7-day activity bars above the sidebar footer | On |
+| Usage card | Weekly limit, 5-hour limit where the plan has one, Claude's usage credits, and 7-day activity bars above the sidebar footer | On |
 | Agent activity | A wave on working threads in the sidebar, sparkles when one finishes | On |
 | Wave spinner | 4x4 shade grid instead of the "Working..." shimmer | On |
 | Composer accent | Thin accent border on the message box while typing | Off |
@@ -93,6 +93,14 @@ Codex): its weekly limit as a progress bar with the time until reset, and a
 7-day bar graph of daily activity. When the account's plan has a 5-hour limit
 (Claude's current session, Codex's 5-hour window), a second line marked "5h"
 under the account shows it the same way. Plans without one show no extra line.
+
+Under the local Claude Code account, a line marked "$" shows its usage credits
+(extra usage): the amount spent this month, a bar against the monthly limit, and
+the limit ("no limit" when it is unlimited). bb's usage API does not report
+credits, so the plugin reads them from Claude's usage endpoint with Claude
+Code's own sign-in (the macOS keychain, else `~/.claude/.credentials.json`)
+every five minutes. It never renews the sign-in. Accounts with credits off and
+nothing spent show no line.
 It stays dim until you hover or focus it.
 
 Accounts signed in through BB's Account Pooler also appear, one compact row per
