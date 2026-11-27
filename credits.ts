@@ -1,8 +1,7 @@
 // Claude's usage credits (extra usage): money spent past the plan's limits this
 // month. bb's usage API leaves them out, so this reads them the way Claude Code
 // does, from the usage endpoint with Claude Code's own sign-in. It never
-// refreshes the sign-in; an expired one shows no credits until Claude Code
-// renews it.
+// refreshes the sign-in; while it is expired the card keeps the last reading.
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { homedir, userInfo } from "node:os";
@@ -86,8 +85,10 @@ export function accessToken(raw: string | null, now: number): string | null {
 }
 
 export async function claudeCredits(now = Date.now()): Promise<Credits> {
-  const token = accessToken(await readCredentials(), now);
-  if (!token) return null;
+  const raw = await readCredentials();
+  if (!raw) throw new Error("no Claude Code sign-in found");
+  const token = accessToken(raw, now);
+  if (!token) throw new Error("the Claude Code sign-in is expired or unreadable");
   const res = await fetch(USAGE_URL, {
     headers: { Authorization: `Bearer ${token}`, "anthropic-beta": "oauth-2025-04-20" },
     signal: AbortSignal.timeout(10_000),
