@@ -83,6 +83,24 @@ export function accessToken(raw: string | null, now: number): string | null {
   }
 }
 
+/** The usage endpoint refused to answer for now; ask again after `retryAfterMs`. */
+export class RateLimited extends Error {
+  readonly retryAfterMs: number | null;
+  constructor(retryAfterMs: number | null) {
+    super("Claude usage is rate limited");
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+/** A Retry-After header, in seconds or as a date, as milliseconds from now. */
+export function retryAfterMs(header: string | null, now: number): number | null {
+  if (!header) return null;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  const at = Date.parse(header);
+  return Number.isNaN(at) ? null : Math.max(0, at - now);
+}
+
 export async function claudeCredits(now = Date.now()): Promise<Credits> {
   const raw = await readCredentials();
   if (!raw) throw new Error("no Claude Code sign-in found");
@@ -92,6 +110,10 @@ export async function claudeCredits(now = Date.now()): Promise<Credits> {
     headers: { Authorization: `Bearer ${token}`, "anthropic-beta": "oauth-2025-04-20" },
     signal: AbortSignal.timeout(10_000),
   });
+  if (res.status === 429) {
+    await res.body?.cancel();
+    throw new RateLimited(retryAfterMs(res.headers.get("retry-after"), now));
+  }
   if (!res.ok) {
     const reason = await res.text().then((text) => text.slice(0, 200), () => "");
     throw new Error(`Claude usage returned ${res.status} ${reason}`.trim());

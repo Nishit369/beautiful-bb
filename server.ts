@@ -21,10 +21,11 @@ import { dailyGains, dayBarSchema, dayBars, trackUsage } from "./usage-history";
 import { createSystemSampler, systemStatsSchema, topProcess } from "./system";
 import { prsResultSchema } from "./prs";
 import { myPullRequests, openInBrowser } from "./prs-source";
-import { claudeCredits, creditsSchema, type Credits } from "./credits";
+import { claudeCredits, creditsSchema, RateLimited, type Credits } from "./credits";
 
 const TOKENS_TTL_MS = 5 * 60 * 1000;
-const CREDITS_TTL_MS = 5 * 60 * 1000;
+const CREDITS_TTL_MS = 10 * 60 * 1000;
+const CREDITS_BACKOFF_MS = 15 * 60 * 1000;
 /** Realtime channel: published whenever a setting changes, so every window re-applies. */
 export const SETTINGS_CHANGED = "settings-changed";
 
@@ -240,17 +241,27 @@ export default async function plugin(bb: BbPluginApi) {
     return tokensCache.byProvider;
   }
 
-  // The usage endpoint is rate limited; read it every few minutes and keep the last good reading.
-  let creditsCache: { at: number; credits: Credits } | null = null;
-  async function credits(): Promise<Credits> {
-    if (creditsCache && Date.now() - creditsCache.at < CREDITS_TTL_MS) return creditsCache.credits;
-    try {
-      creditsCache = { at: Date.now(), credits: await claudeCredits() };
-    } catch (error) {
-      bb.log.warn(`Claude usage credits are unavailable: ${error instanceof Error ? error.message : String(error)}`);
-      creditsCache = { at: Date.now(), credits: creditsCache?.credits ?? null };
-    }
-    return creditsCache.credits;
+  // The usage endpoint is rate limited: one read at a time, every ten minutes,
+  // waiting longer after a 429, and the last good reading in between.
+  let creditsCache: { next: number; credits: Credits } = { next: 0, credits: null };
+  let creditsRead: Promise<Credits> | null = null;
+  function credits(): Promise<Credits> {
+    if (Date.now() < creditsCache.next) return Promise.resolve(creditsCache.credits);
+    creditsRead ??= claudeCredits()
+      .then((credits) => {
+        creditsCache = { next: Date.now() + CREDITS_TTL_MS, credits };
+        return credits;
+      })
+      .catch((error) => {
+        const wait = error instanceof RateLimited ? Math.max(error.retryAfterMs ?? 0, CREDITS_BACKOFF_MS) : CREDITS_TTL_MS;
+        bb.log.warn(`Claude usage credits are unavailable: ${error instanceof Error ? error.message : String(error)}`);
+        creditsCache = { next: Date.now() + wait, credits: creditsCache.credits };
+        return creditsCache.credits;
+      })
+      .finally(() => {
+        creditsRead = null;
+      });
+    return creditsRead;
   }
 
   const system = createSystemSampler();

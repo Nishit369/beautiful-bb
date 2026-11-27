@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { accessToken, parseCredits } from "./credits.ts";
+import { accessToken, parseCredits, retryAfterMs } from "./credits.ts";
 
 const usage = (extra) => ({ five_hour: { utilization: 12 }, extra_usage: extra });
 
@@ -53,4 +53,11 @@ test("an expired or malformed sign-in gives no token", () => {
   assert.equal(accessToken("{", 1000), null, "malformed JSON gives none");
   assert.equal(accessToken(JSON.stringify({}), 1000), null, "no Claude sign-in gives none");
   assert.equal(accessToken(null, 1000), null, "no credentials give none");
+});
+
+test("a Retry-After header reads as seconds or a date", () => {
+  assert.equal(retryAfterMs("120", 0), 120_000);
+  assert.equal(retryAfterMs(new Date(90_000).toUTCString(), 30_000), 60_000);
+  assert.equal(retryAfterMs(null, 0), null);
+  assert.equal(retryAfterMs("soon", 0), null);
 });

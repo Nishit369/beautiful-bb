@@ -99,7 +99,7 @@ Under the local Claude Code account, a line marked "$" shows its usage credits
 the limit ("no limit" when it is unlimited). bb's usage API does not report
 credits, so the plugin reads them from Claude's usage endpoint with Claude
 Code's own sign-in (the macOS keychain, else `~/.claude/.credentials.json`)
-every five minutes. It never renews the sign-in. When credits are turned off,
+every ten minutes, and waits at least fifteen when Claude rate-limits the read. It never renews the sign-in. When credits are turned off,
 the line says "off" in place of the limit; plans without credits show no line.
 It stays dim until you hover or focus it.
 
