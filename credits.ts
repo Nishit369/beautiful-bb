@@ -92,6 +92,9 @@ export async function claudeCredits(now = Date.now()): Promise<Credits> {
     headers: { Authorization: `Bearer ${token}`, "anthropic-beta": "oauth-2025-04-20" },
     signal: AbortSignal.timeout(10_000),
   });
-  if (!res.ok) throw new Error(`Claude usage returned ${res.status}`);
+  if (!res.ok) {
+    const reason = await res.text().then((text) => text.slice(0, 200), () => "");
+    throw new Error(`Claude usage returned ${res.status} ${reason}`.trim());
+  }
   return parseCredits(await res.json());
 }

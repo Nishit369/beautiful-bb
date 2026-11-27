@@ -246,8 +246,8 @@ export default async function plugin(bb: BbPluginApi) {
     if (creditsCache && Date.now() - creditsCache.at < CREDITS_TTL_MS) return creditsCache.credits;
     try {
       creditsCache = { at: Date.now(), credits: await claudeCredits() };
-    } catch {
-      bb.log.warn("Claude usage credits are unavailable.");
+    } catch (error) {
+      bb.log.warn(`Claude usage credits are unavailable: ${error instanceof Error ? error.message : String(error)}`);
       creditsCache = { at: Date.now(), credits: creditsCache?.credits ?? null };
     }
     return creditsCache.credits;
