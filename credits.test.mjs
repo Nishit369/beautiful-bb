@@ -20,11 +20,20 @@ test("an unlimited monthly limit has no limit; a missing currency is USD", () =>
   });
 });
 
-test("accounts without credits, or with credits off and nothing spent, show none", () => {
+test("plans without credits show none; credits off still show, marked off", () => {
   assert.equal(parseCredits({ five_hour: null }), null);
   assert.equal(parseCredits(usage(null)), null);
-  assert.equal(parseCredits(usage({ is_enabled: false, monthly_limit: 5000, used_credits: 0 })), null);
-  assert.equal(parseCredits("not json"), null);
+  assert.deepEqual(parseCredits(usage({ is_enabled: false, monthly_limit: 5000, used_credits: 0 })), {
+    usedCents: 0,
+    limitCents: 5000,
+    currency: "USD",
+    enabled: false,
+  });
+});
+
+test("a reply of an unexpected shape is an error, not an empty line", () => {
+  assert.throws(() => parseCredits("not json"), /unexpected usage reply/);
+  assert.throws(() => parseCredits(usage({ is_enabled: "yes" })), /extra_usage\.is_enabled/);
 });
 
 test("credits switched off after spending still show what was spent", () => {

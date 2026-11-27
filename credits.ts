@@ -39,15 +39,14 @@ const credentialsSchema = z.object({
   claudeAiOauth: z.object({ accessToken: z.string().min(1), expiresAt: z.number().nullish() }),
 });
 
-/** Credits from a usage reply, or null when the account has none to show. */
+/** Credits from a usage reply, or null when the plan has none. */
 export function parseCredits(body: unknown): Credits {
   const parsed = usageSchema.safeParse(body);
-  const extra = parsed.success ? parsed.data.extra_usage : null;
+  if (!parsed.success) throw new Error(`unexpected usage reply: ${parsed.error.issues.map((issue) => issue.path.join(".")).join(", ")}`);
+  const extra = parsed.data.extra_usage;
   if (!extra) return null;
-  const usedCents = extra.used_credits ?? 0;
-  if (!extra.is_enabled && usedCents === 0) return null;
   return {
-    usedCents,
+    usedCents: extra.used_credits ?? 0,
     limitCents: extra.monthly_limit ?? null,
     currency: (extra.currency ?? "USD").toUpperCase(),
     enabled: extra.is_enabled,

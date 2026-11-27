@@ -169,7 +169,7 @@ function CreditsRow({ h }: { h: HarnessUsage }) {
         <span style={{ width: `${used}%`, backgroundSize: `${used > 0 ? 10000 / used : 100}% 100%` }} />
       </span>
       <span className="bbb-spent" aria-hidden="true">{spent}</span>
-      <span className="bbb-in" aria-hidden="true">{limit ? `of ${limit}` : "no limit"}</span>
+      <span className="bbb-in" aria-hidden="true">{!enabled ? "off" : limit ? `of ${limit}` : "no limit"}</span>
     </li>
   );
 }
